@@ -33,21 +33,8 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": [
-      "binaries/stremio-service",
-      "binaries/stremio-runtime",
-      "binaries/ffmpeg",
-      "binaries/ffprobe"
-    ],
     "resources": [
-      "binaries/server.js",
-      "binaries/package.json"
-    ],
-    "macOS": {
-      "files": {
-        "MacOS/server.js": "binaries/server.js",
-        "MacOS/package.json": "binaries/package.json"
-      }
-    }
+      "binaries/*"
+    ]
   }
 }
