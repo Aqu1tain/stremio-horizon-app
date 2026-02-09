@@ -1,6 +1,6 @@
 [package]
 name = "stremio-horizon-app"
-version = "0.1.0"
+version = "0.1.1"
 description = "Desktop app for Stremio Horizon"
 authors = ["Aqu1tain"]
 edition = "2021"
