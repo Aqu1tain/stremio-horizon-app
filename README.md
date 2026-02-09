@@ -14,6 +14,8 @@ Bundles the Stremio Horizon web UI with a [forked stremio-service](https://githu
 | Linux (x64) | [.AppImage / .deb](https://github.com/Aqu1tain/stremio-horizon-app/releases/latest) |
 | Windows (x64) | [.msi / .exe](https://github.com/Aqu1tain/stremio-horizon-app/releases/latest) |
 
+Can't find the download? Head to the [latest release](https://github.com/Aqu1tain/stremio-horizon-app/releases/latest) page directly.
+
 ## How it works
 
 Tauri serves the frontend over `localhost` and spawns `stremio-service` as a sidecar process. The forked service has CORS disabled and auto-update removed so it works seamlessly inside the app.
