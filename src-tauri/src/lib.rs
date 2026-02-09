@@ -62,17 +62,18 @@ fn create_window(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>>
     Ok(())
 }
 
-// WKWebView/WebView2 don't expose the Fullscreen API — bridge it to Tauri's native window API.
 const FULLSCREEN_BRIDGE: &str = r#"
 (function() {
-    const invoke = window.__TAURI_INTERNALS__?.invoke;
-    if (!invoke) return;
+    const getInvoke = () => window.__TAURI_INTERNALS__?.invoke;
 
-    const setFullscreen = (value) =>
-        invoke('plugin:window|set_fullscreen', { label: 'main', value }).then(() => {
+    const setFullscreen = (value) => {
+        const invoke = getInvoke();
+        if (!invoke) return Promise.resolve();
+        return invoke('plugin:window|set_fullscreen', { label: 'main', value }).then(() => {
             document._tauriFullscreen = value;
             document.dispatchEvent(new Event('fullscreenchange'));
         });
+    };
 
     document._tauriFullscreen = false;
     Element.prototype.requestFullscreen = function() { return setFullscreen(true); };
@@ -80,6 +81,11 @@ const FULLSCREEN_BRIDGE: &str = r#"
 
     Object.defineProperty(document, 'fullscreenElement', {
         get() { return document._tauriFullscreen ? document.documentElement : null; },
+        configurable: true,
+    });
+
+    Object.defineProperty(document, 'fullscreenEnabled', {
+        get() { return true; },
         configurable: true,
     });
 })();
