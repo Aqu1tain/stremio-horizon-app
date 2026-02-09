@@ -1,0 +1,14 @@
+node_modules
+dist
+*.log
+*.local
+.DS_Store
+.idea
+*.sw?
+
+# Tauri
+src-tauri/target
+src-tauri/gen
+
+# Sidecar binaries (downloaded, not committed)
+src-tauri/binaries/
