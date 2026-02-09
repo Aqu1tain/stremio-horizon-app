@@ -35,6 +35,13 @@
     ],
     "externalBin": [
       "binaries/stremio-service"
+    ],
+    "resources": [
+      "binaries/server.js",
+      "binaries/stremio-runtime",
+      "binaries/ffmpeg",
+      "binaries/ffprobe",
+      "binaries/package.json"
     ]
   }
 }

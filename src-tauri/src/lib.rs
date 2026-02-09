@@ -6,8 +6,12 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
-            let sidecar = app.shell().sidecar("stremio-service").unwrap();
-            let (_rx, _child) = sidecar.spawn().expect("failed to start stremio-service");
+            if let Ok(sidecar) = app.shell().sidecar("stremio-service") {
+                match sidecar.spawn() {
+                    Ok((_rx, _child)) => println!("stremio-service started"),
+                    Err(e) => eprintln!("stremio-service not bundled, assuming external: {e}"),
+                }
+            }
             Ok(())
         })
         .run(tauri::generate_context!())
