@@ -22,11 +22,18 @@ fn copy_companions_to_target() {
     let _ = std::fs::create_dir_all(&target);
 
     for name in COMPANIONS {
-        let src = binaries.join(name);
+        // On Windows, binaries have .exe extension
+        let src = if cfg!(windows) && !name.contains('.') {
+            binaries.join(format!("{name}.exe"))
+        } else {
+            binaries.join(name)
+        };
+
         if !src.exists() {
             continue;
         }
-        let _ = std::fs::copy(&src, target.join(name));
-        println!("cargo:rerun-if-changed=binaries/{name}");
+        let dst = target.join(src.file_name().unwrap());
+        let _ = std::fs::copy(&src, dst);
+        println!("cargo:rerun-if-changed={}", src.display());
     }
 }
