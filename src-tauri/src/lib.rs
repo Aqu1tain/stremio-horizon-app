@@ -49,7 +49,8 @@ fn create_window(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>>
         .title("Stremio Horizon")
         .inner_size(1280.0, 800.0)
         .min_inner_size(900.0, 600.0)
-        .initialization_script(FULLSCREEN_BRIDGE);
+        .initialization_script(FULLSCREEN_BRIDGE)
+        .initialization_script(FETCH_INTERCEPTOR);
 
     #[cfg(target_os = "windows")]
     {
@@ -91,6 +92,30 @@ const FULLSCREEN_BRIDGE: &str = r#"
 })();
 "#;
 
+const FETCH_INTERCEPTOR: &str = r#"
+(function() {
+    const originalFetch = window.fetch;
+
+    window.fetch = function(input, init) {
+        try {
+            const url = new URL(input instanceof Request ? input.url : input);
+            const host = url.hostname;
+            if (host !== 'localhost' && host !== '127.0.0.1') {
+                const rewritten = '/__ext__/' + url.href;
+                if (input instanceof Request) {
+                    input = new Request(rewritten, input);
+                } else {
+                    input = rewritten;
+                }
+            }
+        } catch (_) {}
+        return originalFetch.call(this, input, init);
+    };
+})();
+"#;
+
+const EXT_PREFIX: &str = "/__ext__/";
+
 fn start_local_server(app: &mut tauri::App) {
     let resolver = app.asset_resolver();
     let fallback = resolver.get("/".to_string()).map(|a| a.bytes);
@@ -102,14 +127,22 @@ fn start_local_server(app: &mut tauri::App) {
         let _ = tx.send(());
 
         for request in server.incoming_requests() {
-            let path = request.url().split('?').next().unwrap_or(request.url()).to_string();
+            let raw_url = request.url().to_string();
+            let path = raw_url.split('?').next().unwrap_or(&raw_url);
 
-            if let Some(resp) = resolve_asset(&resolver, &path, fallback.as_deref()) {
+            if let Some(target) = path.strip_prefix(EXT_PREFIX) {
+                let target = target.to_string();
+                thread::spawn(move || proxy_request(request, &target));
+                continue;
+            }
+
+            if let Some(resp) = resolve_asset(&resolver, path, fallback.as_deref()) {
                 let _ = request.respond(resp);
                 continue;
             }
 
-            thread::spawn(move || proxy_to_service(request));
+            let service_url = format!("http://127.0.0.1:{SERVICE_PORT}{raw_url}");
+            thread::spawn(move || proxy_request(request, &service_url));
         }
     });
 
@@ -146,11 +179,10 @@ fn header(name: &str, value: &str) -> Result<tiny_http::Header, ()> {
 
 const SKIP_HEADERS: &[&str] = &["host", "connection", "origin", "referer"];
 
-fn proxy_to_service(mut request: tiny_http::Request) {
-    let url = format!("http://127.0.0.1:{SERVICE_PORT}{}", request.url());
+fn proxy_request(mut request: tiny_http::Request, url: &str) {
     let method = request.method().to_string();
 
-    let mut proxy = ureq::request(&method, &url);
+    let mut proxy = ureq::request(&method, url);
     for h in request.headers() {
         let name = h.field.as_str().as_str();
         if SKIP_HEADERS.iter().any(|s| s.eq_ignore_ascii_case(name)) {
