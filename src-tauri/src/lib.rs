@@ -1,5 +1,5 @@
-use std::path::PathBuf;
 use std::process::Command;
+use tauri::path::BaseDirectory;
 use tauri::webview::WebviewWindowBuilder;
 use tauri::{Manager, WebviewUrl};
 
@@ -33,35 +33,20 @@ fn create_window(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>>
 }
 
 fn spawn_service(app: &tauri::App) {
-    let name = service_name();
+    let name = if cfg!(windows) { "stremio-service.exe" } else { "stremio-service" };
 
-    let Some(dir) = find_service_dir(app, &name) else {
-        return;
+    let path = match app.path().resolve(format!("binaries/{name}"), BaseDirectory::Resource) {
+        Ok(p) if p.exists() => p,
+        _ => {
+            eprintln!("stremio-service binary not found in resources");
+            return;
+        }
     };
 
-    match Command::new(dir.join(&name)).current_dir(&dir).spawn() {
-        Ok(_) => println!("stremio-service started"),
+    let dir = path.parent().unwrap();
+
+    match Command::new(&path).current_dir(dir).spawn() {
+        Ok(_) => println!("stremio-service started from {}", dir.display()),
         Err(e) => eprintln!("stremio-service failed: {e}"),
-    }
-}
-
-fn find_service_dir(app: &tauri::App, name: &str) -> Option<PathBuf> {
-    let exe_dir = std::env::current_exe().ok()?.parent()?.to_path_buf();
-
-    if exe_dir.join(name).exists() {
-        return Some(exe_dir);
-    }
-
-    app.path()
-        .resource_dir()
-        .ok()
-        .filter(|d| d.join(name).exists())
-}
-
-fn service_name() -> &'static str {
-    if cfg!(windows) {
-        "stremio-service.exe"
-    } else {
-        "stremio-service"
     }
 }
