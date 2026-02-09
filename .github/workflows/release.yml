@@ -1,0 +1,182 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  STREMIO_SERVICE_VERSION: v0.1.15
+
+jobs:
+  build-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: Aqu1tain/stremio-horizon
+          ref: development
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install
+      - run: pnpm run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: build/
+
+  build-tauri:
+    needs: build-web
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            arch: aarch64-apple-darwin
+            service-asset: stremio-service-macos.zip
+          - platform: macos-13
+            arch: x86_64-apple-darwin
+            service-asset: stremio-service-macos.zip
+          - platform: ubuntu-22.04
+            arch: x86_64-unknown-linux-gnu
+            service-asset: stremio-service_amd64.deb
+          - platform: windows-latest
+            arch: x86_64-pc-windows-msvc
+            service-asset: stremio-service-windows.zip
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: dist/
+
+      - run: pnpm install
+
+      - name: Download stremio-service (full)
+        run: |
+          gh release download ${{ env.STREMIO_SERVICE_VERSION }} \
+            --repo Stremio/stremio-service \
+            --pattern "${{ matrix.service-asset }}" \
+            --dir /tmp/stremio-service
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract stremio-service (macOS)
+        if: contains(matrix.platform, 'macos')
+        run: |
+          cd /tmp/stremio-service
+          unzip -o *.zip
+          mkdir -p ${{ github.workspace }}/src-tauri/binaries
+          cp stremio-service ${{ github.workspace }}/src-tauri/binaries/stremio-service-${{ matrix.arch }}
+          cp server.js stremio-runtime ffmpeg ffprobe ${{ github.workspace }}/src-tauri/binaries/
+          echo '{"type":"commonjs"}' > ${{ github.workspace }}/src-tauri/binaries/package.json
+          chmod +x ${{ github.workspace }}/src-tauri/binaries/*
+
+      - name: Extract stremio-service (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: pwsh
+        run: |
+          Expand-Archive /tmp/stremio-service/stremio-service-windows.zip -DestinationPath /tmp/stremio-service/extracted
+          New-Item -ItemType Directory -Force -Path src-tauri/binaries
+          Copy-Item /tmp/stremio-service/extracted/stremio-service.exe src-tauri/binaries/stremio-service-${{ matrix.arch }}.exe
+          Copy-Item /tmp/stremio-service/extracted/server.js src-tauri/binaries/
+          Copy-Item /tmp/stremio-service/extracted/stremio-runtime.exe src-tauri/binaries/
+          Copy-Item /tmp/stremio-service/extracted/ffmpeg.exe src-tauri/binaries/
+          Copy-Item /tmp/stremio-service/extracted/ffprobe.exe src-tauri/binaries/
+          '{"type":"commonjs"}' | Out-File -Encoding utf8 src-tauri/binaries/package.json
+
+      - name: Extract stremio-service (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          mkdir -p /tmp/stremio-service/extracted
+          dpkg-deb -x /tmp/stremio-service/*.deb /tmp/stremio-service/extracted
+          mkdir -p src-tauri/binaries
+          cp /tmp/stremio-service/extracted/usr/bin/stremio-service src-tauri/binaries/stremio-service-${{ matrix.arch }}
+          for f in server.js stremio-runtime ffmpeg ffprobe; do
+            find /tmp/stremio-service/extracted -name "$f" -exec cp {} src-tauri/binaries/ \;
+          done
+          echo '{"type":"commonjs"}' > src-tauri/binaries/package.json
+          chmod +x src-tauri/binaries/*
+
+      - name: Build full version
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: ${{ github.ref_name }}
+          releaseBody: ''
+          releaseDraft: true
+          prerelease: true
+          args: --target ${{ matrix.arch }}
+
+      - name: Save full artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-${{ matrix.arch }}
+          path: |
+            src-tauri/target/${{ matrix.arch }}/release/bundle/**/*.dmg
+            src-tauri/target/${{ matrix.arch }}/release/bundle/**/*.app
+            src-tauri/target/${{ matrix.arch }}/release/bundle/**/*.deb
+            src-tauri/target/${{ matrix.arch }}/release/bundle/**/*.AppImage
+            src-tauri/target/${{ matrix.arch }}/release/bundle/**/*.msi
+            src-tauri/target/${{ matrix.arch }}/release/bundle/**/*.exe
+
+      - name: Remove service files for lite build
+        run: |
+          rm -f src-tauri/binaries/server.js src-tauri/binaries/stremio-runtime src-tauri/binaries/package.json
+          rm -f src-tauri/binaries/ffmpeg* src-tauri/binaries/ffprobe*
+        shell: bash
+
+      - name: Build lite version
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: ${{ github.ref_name }}
+          releaseBody: ''
+          releaseDraft: true
+          prerelease: true
+          args: --target ${{ matrix.arch }}
+
+      - name: Save lite artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: lite-${{ matrix.arch }}
+          path: |
+            src-tauri/target/${{ matrix.arch }}/release/bundle/**/*.dmg
+            src-tauri/target/${{ matrix.arch }}/release/bundle/**/*.app
+            src-tauri/target/${{ matrix.arch }}/release/bundle/**/*.deb
+            src-tauri/target/${{ matrix.arch }}/release/bundle/**/*.AppImage
+            src-tauri/target/${{ matrix.arch }}/release/bundle/**/*.msi
+            src-tauri/target/${{ matrix.arch }}/release/bundle/**/*.exe
