@@ -7,18 +7,8 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "withGlobalTauri": true,
-    "windows": [
-      {
-        "title": "Stremio Horizon",
-        "width": 1280,
-        "height": 800,
-        "minWidth": 900,
-        "minHeight": 600,
-        "decorations": true,
-        "fullscreen": false
-      }
-    ],
+    "withGlobalTauri": false,
+    "windows": [],
     "security": {
       "csp": null
     }

@@ -3,9 +3,11 @@
   "identifier": "default",
   "description": "Capability for the main window",
   "windows": ["main"],
+  "remote": {
+    "urls": ["http://localhost:*"]
+  },
   "permissions": [
     "core:default",
-    "opener:default",
-    "cors-fetch:default"
+    "opener:default"
   ]
 }
