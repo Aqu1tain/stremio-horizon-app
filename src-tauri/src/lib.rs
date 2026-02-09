@@ -65,12 +65,10 @@ fn create_window(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>>
 
 const FULLSCREEN_BRIDGE: &str = r#"
 (function() {
-    const getInvoke = () => window.__TAURI_INTERNALS__?.invoke;
-
     const setFullscreen = (value) => {
-        const invoke = getInvoke();
-        if (!invoke) return Promise.resolve();
-        return invoke('plugin:window|set_fullscreen', { label: 'main', value }).then(() => {
+        const tauri = window.__TAURI_INTERNALS__;
+        if (!tauri?.invoke) return Promise.resolve();
+        return tauri.invoke('plugin:window|set_fullscreen', { label: 'main', value }).then(() => {
             document._tauriFullscreen = value;
             document.dispatchEvent(new Event('fullscreenchange'));
         });
@@ -100,7 +98,7 @@ const FETCH_INTERCEPTOR: &str = r#"
         try {
             const url = new URL(input instanceof Request ? input.url : input);
             const host = url.hostname;
-            if (host !== 'localhost' && host !== '127.0.0.1') {
+            if (host !== 'localhost' && host !== '127.0.0.1' && !host.endsWith('.localhost')) {
                 const rewritten = '/__ext__/' + url.href;
                 if (input instanceof Request) {
                     input = new Request(rewritten, input);
