@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 env:
   STREMIO_SERVICE_VERSION: v0.1.15
 
@@ -34,17 +37,33 @@ jobs:
           name: web-dist
           path: build/
 
-  build-tauri:
+  create-release:
     needs: build-web
+    runs-on: ubuntu-latest
+    outputs:
+      release-id: ${{ steps.create.outputs.release_id }}
+    steps:
+      - name: Create draft release
+        id: create
+        run: |
+          RELEASE_ID=$(gh api repos/${{ github.repository }}/releases \
+            -f tag_name=${{ github.ref_name }} \
+            -f name=${{ github.ref_name }} \
+            -F draft=true \
+            -F prerelease=true \
+            --jq '.id')
+          echo "release_id=$RELEASE_ID" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-tauri:
+    needs: [build-web, create-release]
     strategy:
       fail-fast: false
       matrix:
         include:
           - platform: macos-latest
             arch: aarch64-apple-darwin
-            service-asset: stremio-service-macos.zip
-          - platform: macos-13
-            arch: x86_64-apple-darwin
             service-asset: stremio-service-macos.zip
           - platform: ubuntu-22.04
             arch: x86_64-unknown-linux-gnu
@@ -87,57 +106,63 @@ jobs:
           gh release download ${{ env.STREMIO_SERVICE_VERSION }} \
             --repo Stremio/stremio-service \
             --pattern "${{ matrix.service-asset }}" \
-            --dir /tmp/stremio-service
+            --dir "$RUNNER_TEMP/stremio-service"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract stremio-service (macOS)
         if: contains(matrix.platform, 'macos')
         run: |
-          cd /tmp/stremio-service
+          cd "$RUNNER_TEMP/stremio-service"
           unzip -o *.zip
-          mkdir -p ${{ github.workspace }}/src-tauri/binaries
+          mkdir -p "${{ github.workspace }}/src-tauri/binaries"
           cp stremio-service stremio-runtime ffmpeg ffprobe server.js \
-            ${{ github.workspace }}/src-tauri/binaries/
-          echo '{"type":"commonjs"}' > ${{ github.workspace }}/src-tauri/binaries/package.json
-          chmod +x ${{ github.workspace }}/src-tauri/binaries/*
+            "${{ github.workspace }}/src-tauri/binaries/"
+          echo '{"type":"commonjs"}' > "${{ github.workspace }}/src-tauri/binaries/package.json"
+          chmod +x "${{ github.workspace }}/src-tauri/binaries/"*
 
       - name: Extract stremio-service (Windows)
         if: matrix.platform == 'windows-latest'
-        shell: pwsh
+        shell: bash
         run: |
-          Expand-Archive /tmp/stremio-service/stremio-service-windows.zip -DestinationPath /tmp/stremio-service/extracted
-          New-Item -ItemType Directory -Force -Path src-tauri/binaries
-          Copy-Item /tmp/stremio-service/extracted/stremio-service.exe src-tauri/binaries/
-          Copy-Item /tmp/stremio-service/extracted/server.js src-tauri/binaries/
-          Copy-Item /tmp/stremio-service/extracted/stremio-runtime.exe src-tauri/binaries/
-          Copy-Item /tmp/stremio-service/extracted/ffmpeg.exe src-tauri/binaries/
-          Copy-Item /tmp/stremio-service/extracted/ffprobe.exe src-tauri/binaries/
-          '{"type":"commonjs"}' | Out-File -Encoding utf8 src-tauri/binaries/package.json
+          cd "$RUNNER_TEMP/stremio-service"
+          7z x stremio-service-windows.zip -oextracted
+          echo "--- Extracted contents ---"
+          ls -la extracted/
+          mkdir -p "${{ github.workspace }}/src-tauri/binaries"
+          find extracted -maxdepth 2 -type f \( \
+            -name "stremio-service.exe" -o \
+            -name "stremio-runtime.exe" -o \
+            -name "ffmpeg.exe" -o \
+            -name "ffprobe.exe" -o \
+            -name "server.js" \
+          \) -exec cp {} "${{ github.workspace }}/src-tauri/binaries/" \;
+          echo '{"type":"commonjs"}' > "${{ github.workspace }}/src-tauri/binaries/package.json"
 
       - name: Extract stremio-service (Linux)
         if: matrix.platform == 'ubuntu-22.04'
         run: |
-          mkdir -p /tmp/stremio-service/extracted
-          dpkg-deb -x /tmp/stremio-service/*.deb /tmp/stremio-service/extracted
+          mkdir -p "$RUNNER_TEMP/stremio-service/extracted"
+          dpkg-deb -x "$RUNNER_TEMP"/stremio-service/*.deb "$RUNNER_TEMP/stremio-service/extracted"
           mkdir -p src-tauri/binaries
-          cp /tmp/stremio-service/extracted/usr/bin/stremio-service src-tauri/binaries/
-          for f in server.js stremio-runtime ffmpeg ffprobe; do
-            find /tmp/stremio-service/extracted -name "$f" -exec cp {} src-tauri/binaries/ \;
+          echo "--- .deb contents ---"
+          find "$RUNNER_TEMP/stremio-service/extracted" -type f | head -30
+          for f in stremio-service stremio-runtime ffmpeg ffprobe server.js; do
+            find "$RUNNER_TEMP/stremio-service/extracted" -name "$f" -type f | while read src; do
+              cp "$src" src-tauri/binaries/
+            done
           done
           echo '{"type":"commonjs"}' > src-tauri/binaries/package.json
           chmod +x src-tauri/binaries/*
+          echo "--- binaries dir ---"
+          ls -la src-tauri/binaries/
 
       - name: Build full version
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: ${{ github.ref_name }}
-          releaseBody: ''
-          releaseDraft: true
-          prerelease: true
+          releaseId: ${{ needs.create-release.outputs.release-id }}
           args: --target ${{ matrix.arch }}
 
       - name: Save full artifacts
@@ -156,19 +181,15 @@ jobs:
         shell: bash
         run: |
           rm -rf src-tauri/binaries/*
-          jq '.bundle.resources = []' src-tauri/tauri.conf.json > tmp.json && mv tmp.json src-tauri/tauri.conf.json
-          jq '.productName = "Stremio Horizon Lite"' src-tauri/tauri.conf.json > tmp.json && mv tmp.json src-tauri/tauri.conf.json
+          jq '.bundle.resources = [] | .productName = "Stremio Horizon Lite"' \
+            src-tauri/tauri.conf.json > tmp.json && mv tmp.json src-tauri/tauri.conf.json
 
       - name: Build lite version
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: ${{ github.ref_name }}
-          releaseBody: ''
-          releaseDraft: true
-          prerelease: true
+          releaseId: ${{ needs.create-release.outputs.release-id }}
           args: --target ${{ matrix.arch }}
 
       - name: Save lite artifacts
