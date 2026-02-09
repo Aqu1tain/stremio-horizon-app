@@ -8,6 +8,8 @@
   },
   "permissions": [
     "core:default",
-    "opener:default"
+    "opener:default",
+    "core:window:allow-set-fullscreen",
+    "core:window:allow-is-fullscreen"
   ]
 }
