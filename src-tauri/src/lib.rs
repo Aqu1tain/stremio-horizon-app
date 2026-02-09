@@ -4,6 +4,7 @@ use tauri::Manager;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_cors_fetch::init())
         .setup(|app| {
             let exe_dir = std::env::current_exe()?
                 .parent()
@@ -28,6 +29,7 @@ pub fn run() {
             if let Some(dir) = service_dir {
                 match std::process::Command::new(dir.join(service_name))
                     .current_dir(&dir)
+                    .env("NO_CORS", "1")
                     .spawn()
                 {
                     Ok(_) => println!("stremio-service started"),
