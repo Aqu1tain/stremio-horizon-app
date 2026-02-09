@@ -108,7 +108,7 @@ jobs:
 
       - name: Clone stremio-service fork
         shell: bash
-        run: git clone https://github.com/Aqu1tain/stremio-service "$RUNNER_TEMP/stremio-service"
+        run: rm -rf "$RUNNER_TEMP/stremio-service" && git clone https://github.com/Aqu1tain/stremio-service "$RUNNER_TEMP/stremio-service"
 
       - name: Build stremio-service
         shell: bash
