@@ -16,24 +16,7 @@ Bundles the Stremio Horizon web UI with a [forked stremio-service](https://githu
 
 ## How it works
 
-```
-┌──────────────────────────────┐
-│     Stremio Horizon App      │
-│          (Tauri)             │
-│                              │
-│  ┌────────────────────────┐  │
-│  │   Stremio Horizon UI   │  │
-│  │     (web frontend)     │  │
-│  └────────────────────────┘  │
-│                              │
-│  ┌────────────────────────┐  │
-│  │    stremio-service      │  │
-│  │  (streaming backend)   │  │
-│  └────────────────────────┘  │
-└──────────────────────────────┘
-```
-
-The Tauri shell serves the frontend over `localhost` and spawns `stremio-service` as a sidecar process. The forked service has CORS disabled and auto-update removed so it works seamlessly inside the app.
+Tauri serves the frontend over `localhost` and spawns `stremio-service` as a sidecar process. The forked service has CORS disabled and auto-update removed so it works seamlessly inside the app.
 
 ## Development
 
