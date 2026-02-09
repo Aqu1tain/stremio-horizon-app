@@ -4,6 +4,8 @@ Desktop app for [Stremio Horizon](https://github.com/Aqu1tain/stremio-horizon), 
 
 Bundles the Stremio Horizon web UI with a [forked stremio-service](https://github.com/Aqu1tain/stremio-service) for local streaming.
 
+> This is not a replacement for [Stremio](https://www.stremio.com) — just a personal take on what a great UI could look like. Go star Stremio!
+
 ## Download
 
 | Platform | Download |
