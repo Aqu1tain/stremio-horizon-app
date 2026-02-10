@@ -1,0 +1,29 @@
+name: Bug report
+description: Something isn't working right
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: input
+    id: environment
+    attributes:
+      label: "Environment"
+      description: "OS, version, anything relevant"
+      placeholder: "e.g. macOS Sequoia, Windows 11, Ubuntu 24.04..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: what_happened
+    attributes:
+      label: "What happened?"
+      description: "What did you do, what did you expect, and what actually happened?"
+      placeholder: "Steps to reproduce, expected vs actual behavior..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: "Anything else?"
+      description: "Logs, screenshots, crash reports — whatever might help"
