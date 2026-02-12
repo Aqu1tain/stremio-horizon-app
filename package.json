@@ -1,8 +1,7 @@
 {
   "name": "stremio-horizon-app",
   "private": true,
-  "version": "0.2.1",
-  "type": "module",
+  "version": "0.2.2",
   "scripts": {
     "tauri": "tauri",
     "build:web": "cd ../stremio-web && pnpm run build && cp -r build ../stremio-horizon-app/dist",
