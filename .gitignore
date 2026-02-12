@@ -12,3 +12,6 @@ src-tauri/gen
 
 # Sidecar binaries (downloaded, not committed)
 src-tauri/binaries/
+
+# Nested site clone
+stremio-horizon-site/
