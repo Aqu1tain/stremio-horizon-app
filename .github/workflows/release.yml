@@ -87,7 +87,7 @@ jobs:
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev libssl-dev
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev libssl-dev rpm
 
       - uses: actions/download-artifact@v4
         with:
@@ -132,6 +132,7 @@ jobs:
             src-tauri/target/${{ matrix.arch }}/release/bundle/**/*.dmg
             src-tauri/target/${{ matrix.arch }}/release/bundle/**/*.app
             src-tauri/target/${{ matrix.arch }}/release/bundle/**/*.deb
+            src-tauri/target/${{ matrix.arch }}/release/bundle/**/*.rpm
             src-tauri/target/${{ matrix.arch }}/release/bundle/**/*.AppImage
             src-tauri/target/${{ matrix.arch }}/release/bundle/**/*.msi
             src-tauri/target/${{ matrix.arch }}/release/bundle/**/*.exe
