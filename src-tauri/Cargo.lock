@@ -3349,7 +3349,7 @@ checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 
 [[package]]
 name = "stremio-horizon-app"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "serde",
  "serde_json",
@@ -3358,6 +3358,7 @@ dependencies = [
  "tauri-plugin-opener",
  "tiny_http",
  "ureq",
+ "webkit2gtk",
 ]
 
 [[package]]

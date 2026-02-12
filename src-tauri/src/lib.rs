@@ -59,7 +59,20 @@ fn create_window(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>>
         );
     }
 
-    builder.build()?;
+    #[allow(unused_variables)]
+    let window = builder.build()?;
+
+    #[cfg(target_os = "linux")]
+    {
+        use webkit2gtk::{HardwareAccelerationPolicy, SettingsExt, WebViewExt};
+        let _ = window.with_webview(|webview| {
+            let wv = webview.inner();
+            if let Some(settings) = WebViewExt::settings(&wv) {
+                settings.set_hardware_acceleration_policy(HardwareAccelerationPolicy::Never);
+            }
+        });
+    }
+
     Ok(())
 }
 
