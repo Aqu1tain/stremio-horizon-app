@@ -1,0 +1,36 @@
+name: Check upstream stremio-web
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compare latest release tags
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          UPSTREAM=$(gh release view --repo Stremio/stremio-web --json tagName -q .tagName)
+          FORK=$(gh release view --repo Aqu1tain/stremio-horizon --json tagName -q .tagName)
+
+          echo "Upstream stremio-web: $UPSTREAM"
+          echo "Fork stremio-horizon: $FORK"
+
+          if [ "$UPSTREAM" = "$FORK" ]; then
+            echo "Tags match, nothing to do"
+            exit 0
+          fi
+
+          EXISTING=$(gh issue list --repo ${{ github.repository }} --label upstream-update --state open --json number -q '.[0].number')
+          if [ -n "$EXISTING" ]; then
+            echo "Open issue #$EXISTING already exists, skipping"
+            exit 0
+          fi
+
+          gh issue create --repo ${{ github.repository }} \
+            --title "Upstream stremio-web updated to $UPSTREAM" \
+            --body "stremio-web released **$UPSTREAM** but stremio-horizon is on **$FORK**. Review the upstream changes and update the fork if needed." \
+            --label upstream-update
