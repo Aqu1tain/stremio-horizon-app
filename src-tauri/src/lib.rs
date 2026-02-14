@@ -1,11 +1,13 @@
 use std::net::TcpStream;
 use std::path::PathBuf;
 use std::process::Command;
-use std::sync::mpsc;
+use std::sync::{mpsc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 use tauri::webview::WebviewWindowBuilder;
 use tauri::{Manager, WebviewUrl};
+
+mod chromecast;
 
 const PORT: u16 = 11480;
 const SERVICE_PORT: u16 = 11470;
@@ -19,6 +21,15 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .manage(Mutex::new(chromecast::CastManagerState::default()))
+        .invoke_handler(tauri::generate_handler![
+            chromecast::chromecast_discover,
+            chromecast::chromecast_connect,
+            chromecast::chromecast_launch,
+            chromecast::chromecast_send,
+            chromecast::chromecast_disconnect,
+            chromecast::chromecast_get_device_name,
+        ])
         .setup(|app| {
             start_local_server(app);
             spawn_streaming_service(app);
