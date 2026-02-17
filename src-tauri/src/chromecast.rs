@@ -286,17 +286,31 @@ fn cast_session_loop(
     let mut session: Option<SessionInfo> = None;
     let mut last_ping = Instant::now();
     let mut running = true;
+    let mut pending_launch: Option<(String, Sender<Result<SessionInfo, String>>, Instant)> = None;
 
     while running {
         // Receive messages from the Chromecast
+        let expected_app_id = pending_launch.as_ref().map(|(id, _, _)| id.as_str());
         match conn.receive() {
             Ok(Some(msg)) => {
-                handle_cast_message(&mut conn, &msg, &mut session, &app, &device_name);
+                handle_cast_message(&mut conn, &msg, &mut session, &app, &device_name, expected_app_id);
             }
             Ok(None) => {} // timeout
             Err(e) => {
                 eprintln!("chromecast: receive error: {e}");
                 break;
+            }
+        }
+
+        // Resolve pending launch if session arrived
+        if let (Some(ref info), Some((_, reply, _))) = (&session, pending_launch.take()) {
+            let _ = conn.open_connection(&info.transport_id);
+            emit_state(&app, "CONNECTED", "SESSION_STARTED");
+            let _ = reply.send(Ok(info.clone()));
+        } else if let Some((ref _id, _, deadline)) = pending_launch {
+            if Instant::now() >= deadline {
+                let (_, reply, _) = pending_launch.take().unwrap();
+                let _ = reply.send(Err("timeout waiting for session".into()));
             }
         }
 
@@ -307,14 +321,10 @@ fn cast_session_loop(
                     let result = handle_launch(&mut conn, &app_id);
                     if result.is_ok() {
                         emit_state(&app, "CONNECTING", "SESSION_STARTING");
-                    }
-                    // Wait for RECEIVER_STATUS with session info
-                    let session_result = if result.is_ok() {
-                        wait_for_session(&mut conn, &mut session, &app, &device_name)
+                        pending_launch = Some((app_id, reply, Instant::now() + Duration::from_secs(30)));
                     } else {
-                        Err(result.unwrap_err())
-                    };
-                    let _ = reply.send(session_result);
+                        let _ = reply.send(Err(result.unwrap_err()));
+                    }
                 }
                 Ok(CastCommand::Send { message, reply }) => {
                     let result = if let Some(ref s) = session {
@@ -360,6 +370,7 @@ fn handle_cast_message(
     session: &mut Option<SessionInfo>,
     app: &AppHandle,
     _device_name: &str,
+    expected_app_id: Option<&str>,
 ) {
     let payload = match &msg.payload_utf8 {
         Some(p) => p,
@@ -383,6 +394,16 @@ fn handle_cast_message(
                         .and_then(|a| a.as_array())
                     {
                         if let Some(app_info) = apps.first() {
+                            if let Some(expected) = expected_app_id {
+                                let running_app_id = app_info
+                                    .get("appId")
+                                    .and_then(|a| a.as_str())
+                                    .unwrap_or_default();
+                                if running_app_id != expected {
+                                    return;
+                                }
+                            }
+
                             let transport_id = app_info
                                 .get("transportId")
                                 .and_then(|t| t.as_str())
@@ -417,32 +438,6 @@ fn handle_launch(conn: &mut CastConnection, app_id: &str) -> Result<u32, String>
     conn.launch_app(app_id)
 }
 
-fn wait_for_session(
-    conn: &mut CastConnection,
-    session: &mut Option<SessionInfo>,
-    app: &AppHandle,
-    device_name: &str,
-) -> Result<SessionInfo, String> {
-    let deadline = Instant::now() + Duration::from_secs(30);
-
-    while Instant::now() < deadline {
-        match conn.receive() {
-            Ok(Some(msg)) => {
-                handle_cast_message(conn, &msg, session, app, device_name);
-                if let Some(ref info) = session {
-                    // Connect to the app's transport
-                    conn.open_connection(&info.transport_id)?;
-                    emit_state(app, "CONNECTED", "SESSION_STARTED");
-                    return Ok(info.clone());
-                }
-            }
-            Ok(None) => continue,
-            Err(e) => return Err(e),
-        }
-    }
-
-    Err("timeout waiting for session".into())
-}
 
 // --- Tauri state ---
 
