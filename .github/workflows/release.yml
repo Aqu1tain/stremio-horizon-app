@@ -37,7 +37,7 @@ jobs:
             -f tag_name=${{ github.ref_name }} \
             -f name=${{ github.ref_name }} \
             -F draft=true \
-            -F prerelease=true \
+            -F prerelease=false \
             --jq '.id')
           echo "release_id=$RELEASE_ID" >> "$GITHUB_OUTPUT"
         env:
@@ -120,6 +120,8 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           releaseId: ${{ needs.create-release.outputs.release-id }}
           args: --target ${{ matrix.arch }}
@@ -136,3 +138,12 @@ jobs:
             src-tauri/target/${{ matrix.arch }}/release/bundle/**/*.AppImage
             src-tauri/target/${{ matrix.arch }}/release/bundle/**/*.msi
             src-tauri/target/${{ matrix.arch }}/release/bundle/**/*.exe
+
+  publish-release:
+    needs: [build-tauri, create-release]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish draft release
+        run: gh api repos/${{ github.repository }}/releases/${{ needs.create-release.outputs.release-id }} -X PATCH -F draft=false
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
