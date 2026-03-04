@@ -8,6 +8,8 @@ use tauri::webview::WebviewWindowBuilder;
 use tauri::{Manager, WebviewUrl};
 
 mod chromecast;
+mod config;
+mod updater;
 
 const PORT: u16 = 11480;
 const SERVICE_PORT: u16 = 11470;
@@ -21,6 +23,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Mutex::new(chromecast::CastManagerState::default()))
         .invoke_handler(tauri::generate_handler![
             chromecast::chromecast_discover,
@@ -29,12 +32,21 @@ pub fn run() {
             chromecast::chromecast_send,
             chromecast::chromecast_disconnect,
             chromecast::chromecast_get_device_name,
+            updater::install_update,
+            updater::get_auto_update_enabled,
+            updater::set_auto_update_enabled,
         ])
         .setup(|app| {
             start_local_server(app);
             spawn_streaming_service(app);
             wait_for_service();
             create_window(app)?;
+
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                updater::check_for_updates(handle).await;
+            });
+
             Ok(())
         })
         .run(tauri::generate_context!())
