@@ -16,6 +16,14 @@ Bundles the Stremio Horizon web UI with a [forked stremio-service](https://githu
 
 Can't find the download? Head to the [latest release](https://github.com/Aqu1tain/stremio-horizon-app/releases/latest) page directly.
 
+### macOS: app is damaged / can't be opened
+
+macOS quarantines apps downloaded outside the App Store. If you get a warning, run:
+
+```bash
+sudo xattr -rd com.apple.quarantine /Applications/Stremio\ Horizon.app
+```
+
 ## How it works
 
 Tauri serves the frontend over `localhost` and spawns `stremio-service` as a sidecar process. The forked service has CORS disabled and auto-update removed so it works seamlessly inside the app.
