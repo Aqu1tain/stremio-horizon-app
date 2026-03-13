@@ -183,6 +183,10 @@ fn start_local_server(app: &mut tauri::App) {
             let path = raw_url.split('?').next().unwrap_or(&raw_url);
 
             if let Some(target) = path.strip_prefix(EXT_PREFIX) {
+                if !target.starts_with("http://") && !target.starts_with("https://") {
+                    let _ = request.respond(tiny_http::Response::from_string("Bad scheme").with_status_code(400));
+                    continue;
+                }
                 let target = target.to_string();
                 let agent = ext_agent.clone();
                 ext_pool.execute(move || proxy_request(request, &target, &agent));
