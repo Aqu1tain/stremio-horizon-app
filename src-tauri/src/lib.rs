@@ -6,6 +6,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 use tauri::webview::WebviewWindowBuilder;
 use tauri::{Manager, WebviewUrl};
+use threadpool::ThreadPool;
 
 mod chromecast;
 mod config;
@@ -15,6 +16,12 @@ const PORT: u16 = 11480;
 const SERVICE_PORT: u16 = 11470;
 const SERVICE_TIMEOUT: Duration = Duration::from_secs(15);
 const POLL_INTERVAL: Duration = Duration::from_millis(200);
+const EXT_POOL_SIZE: usize = 8;
+const SVC_POOL_SIZE: usize = 4;
+const EXT_TIMEOUT: Duration = Duration::from_secs(30);
+const EXT_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const SVC_TIMEOUT: Duration = Duration::from_secs(60);
+const SVC_CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -155,6 +162,17 @@ fn start_local_server(app: &mut tauri::App) {
     let fallback = resolver.get("/".to_string()).map(|a| a.bytes);
     let (tx, rx) = mpsc::channel();
 
+    let ext_agent = ureq::AgentBuilder::new()
+        .timeout(EXT_TIMEOUT)
+        .timeout_connect(EXT_CONNECT_TIMEOUT)
+        .build();
+    let svc_agent = ureq::AgentBuilder::new()
+        .timeout(SVC_TIMEOUT)
+        .timeout_connect(SVC_CONNECT_TIMEOUT)
+        .build();
+    let ext_pool = ThreadPool::new(EXT_POOL_SIZE);
+    let svc_pool = ThreadPool::new(SVC_POOL_SIZE);
+
     thread::spawn(move || {
         let server = tiny_http::Server::http(format!("localhost:{PORT}"))
             .expect("unable to bind localhost server");
@@ -165,8 +183,13 @@ fn start_local_server(app: &mut tauri::App) {
             let path = raw_url.split('?').next().unwrap_or(&raw_url);
 
             if let Some(target) = path.strip_prefix(EXT_PREFIX) {
+                if !target.starts_with("http://") && !target.starts_with("https://") {
+                    let _ = request.respond(tiny_http::Response::from_string("Bad scheme").with_status_code(400));
+                    continue;
+                }
                 let target = target.to_string();
-                thread::spawn(move || proxy_request(request, &target));
+                let agent = ext_agent.clone();
+                ext_pool.execute(move || proxy_request(request, &target, &agent));
                 continue;
             }
 
@@ -176,7 +199,8 @@ fn start_local_server(app: &mut tauri::App) {
             }
 
             let service_url = format!("http://127.0.0.1:{SERVICE_PORT}{raw_url}");
-            thread::spawn(move || proxy_request(request, &service_url));
+            let agent = svc_agent.clone();
+            svc_pool.execute(move || proxy_request(request, &service_url, &agent));
         }
     });
 
@@ -213,10 +237,10 @@ fn header(name: &str, value: &str) -> Result<tiny_http::Header, ()> {
 
 const SKIP_HEADERS: &[&str] = &["host", "connection", "origin", "referer"];
 
-fn proxy_request(mut request: tiny_http::Request, url: &str) {
+fn proxy_request(mut request: tiny_http::Request, url: &str, agent: &ureq::Agent) {
     let method = request.method().to_string();
 
-    let mut proxy = ureq::request(&method, url);
+    let mut proxy = agent.request(&method, url);
     for h in request.headers() {
         let name = h.field.as_str().as_str();
         if SKIP_HEADERS.iter().any(|s| s.eq_ignore_ascii_case(name)) {

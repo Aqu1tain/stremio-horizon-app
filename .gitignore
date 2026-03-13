@@ -15,3 +15,5 @@ src-tauri/binaries/
 
 # Nested site clone
 stremio-horizon-site/
+
+CLAUDE.md

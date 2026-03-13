@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+### Changed
+
+- Reuse TCP connections and threads in proxy server (connection pooling via ureq agents, threadpool instead of raw thread::spawn)
+
 ## [0.3.1] - 2026-03-12
 
 ### Changed
