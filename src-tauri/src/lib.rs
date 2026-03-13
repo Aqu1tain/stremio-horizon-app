@@ -16,7 +16,8 @@ const PORT: u16 = 11480;
 const SERVICE_PORT: u16 = 11470;
 const SERVICE_TIMEOUT: Duration = Duration::from_secs(15);
 const POLL_INTERVAL: Duration = Duration::from_millis(200);
-const POOL_SIZE: usize = 8;
+const EXT_POOL_SIZE: usize = 8;
+const SVC_POOL_SIZE: usize = 4;
 const EXT_TIMEOUT: Duration = Duration::from_secs(30);
 const EXT_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const SVC_TIMEOUT: Duration = Duration::from_secs(60);
@@ -169,7 +170,8 @@ fn start_local_server(app: &mut tauri::App) {
         .timeout(SVC_TIMEOUT)
         .timeout_connect(SVC_CONNECT_TIMEOUT)
         .build();
-    let pool = ThreadPool::new(POOL_SIZE);
+    let ext_pool = ThreadPool::new(EXT_POOL_SIZE);
+    let svc_pool = ThreadPool::new(SVC_POOL_SIZE);
 
     thread::spawn(move || {
         let server = tiny_http::Server::http(format!("localhost:{PORT}"))
@@ -183,7 +185,7 @@ fn start_local_server(app: &mut tauri::App) {
             if let Some(target) = path.strip_prefix(EXT_PREFIX) {
                 let target = target.to_string();
                 let agent = ext_agent.clone();
-                pool.execute(move || proxy_request(request, &target, &agent));
+                ext_pool.execute(move || proxy_request(request, &target, &agent));
                 continue;
             }
 
@@ -194,7 +196,7 @@ fn start_local_server(app: &mut tauri::App) {
 
             let service_url = format!("http://127.0.0.1:{SERVICE_PORT}{raw_url}");
             let agent = svc_agent.clone();
-            pool.execute(move || proxy_request(request, &service_url, &agent));
+            svc_pool.execute(move || proxy_request(request, &service_url, &agent));
         }
     });
 
