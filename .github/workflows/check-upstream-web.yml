@@ -9,28 +9,40 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - name: Compare latest release tags
+      - name: Compare upstream release against fork
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
+
           UPSTREAM=$(gh release view --repo Stremio/stremio-web --json tagName -q .tagName)
-          FORK=$(gh release view --repo Aqu1tain/stremio-horizon --json tagName -q .tagName)
+          MERGED=$(gh api 'repos/Aqu1tain/stremio-horizon/contents/package.json?ref=development' --jq '.content' | base64 -d | jq -r '.upstreamVersion // empty')
+
+          if [ -z "$UPSTREAM" ]; then
+            echo "::error::Failed to fetch upstream release tag"
+            exit 1
+          fi
+
+          if [ -z "$MERGED" ]; then
+            echo "::error::Failed to read upstreamVersion from stremio-horizon package.json"
+            exit 1
+          fi
 
           echo "Upstream stremio-web: $UPSTREAM"
-          echo "Fork stremio-horizon: $FORK"
+          echo "Fork has merged:     $MERGED"
 
-          if [ "$UPSTREAM" = "$FORK" ]; then
-            echo "Tags match, nothing to do"
+          if [ "$UPSTREAM" = "$MERGED" ]; then
+            echo "Already up to date"
             exit 0
           fi
 
-          EXISTING=$(gh issue list --repo ${{ github.repository }} --label upstream-update --state open --json number -q '.[0].number')
+          EXISTING=$(gh issue list --repo "${{ github.repository }}" --label upstream-update --state open --json number -q '.[0].number')
           if [ -n "$EXISTING" ]; then
             echo "Open issue #$EXISTING already exists, skipping"
             exit 0
           fi
 
-          gh issue create --repo ${{ github.repository }} \
+          gh issue create --repo "${{ github.repository }}" \
             --title "Upstream stremio-web updated to $UPSTREAM" \
-            --body "stremio-web released **$UPSTREAM** but stremio-horizon is on **$FORK**. Review the upstream changes and update the fork if needed." \
+            --body "stremio-web released **$UPSTREAM** but stremio-horizon has only merged **$MERGED**. Review the upstream changes and update the fork if needed." \
             --label upstream-update
