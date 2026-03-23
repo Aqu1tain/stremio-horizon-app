@@ -124,12 +124,15 @@ pub fn run() {
             start_local_server(app);
 
             let service = spawn_streaming_service(app);
-            if let Some(svc) = service {
-                *app.state::<ServiceState>().lock().unwrap() = Some(svc);
-            }
+            let spawned = service.is_some();
+            *app.state::<ServiceState>().lock().unwrap() = service;
 
-            wait_for_service();
+            let ready = wait_for_service();
             create_window(app)?;
+
+            if !spawned || !ready {
+                warn_service_failed(app);
+            }
 
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
@@ -150,15 +153,16 @@ pub fn run() {
     });
 }
 
-fn wait_for_service() {
+fn wait_for_service() -> bool {
     let deadline = Instant::now() + SERVICE_TIMEOUT;
     while Instant::now() < deadline {
         if TcpStream::connect(format!("127.0.0.1:{SERVICE_PORT}")).is_ok() {
-            return;
+            return true;
         }
         thread::sleep(POLL_INTERVAL);
     }
     eprintln!("streaming service did not start in time");
+    false
 }
 
 fn create_window(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
@@ -422,6 +426,30 @@ fn spawn_streaming_service(app: &tauri::App) -> Option<ServiceProcess> {
         }
     }
 }
+
+fn warn_service_failed(app: &tauri::App) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.eval(SERVICE_WARNING_SCRIPT);
+    }
+}
+
+const SERVICE_WARNING_SCRIPT: &str = r#"
+(function() {
+    function show() {
+        var banner = document.createElement('div');
+        banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:999999;background:#b91c1c;color:#fff;font:14px/1.4 -apple-system,sans-serif;padding:10px 40px 10px 16px;text-align:center;';
+        banner.textContent = 'The streaming service failed to start. Streaming and some features may not work.';
+        var btn = document.createElement('button');
+        btn.textContent = '\u00D7';
+        btn.style.cssText = 'position:absolute;top:50%;right:12px;transform:translateY(-50%);background:none;border:none;color:#fff;font-size:20px;cursor:pointer;padding:0 4px;';
+        btn.onclick = function() { banner.remove(); };
+        banner.appendChild(btn);
+        document.body.prepend(banner);
+    }
+    if (document.body) { show(); }
+    else { document.addEventListener('DOMContentLoaded', show); }
+})();
+"#;
 
 fn find_binaries_dir(app: &tauri::App) -> Option<PathBuf> {
     [
