@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 - Reuse TCP connections and threads in proxy server (connection pooling via ureq agents, threadpool instead of raw thread::spawn)
 
+### Fixed
+
+- Upstream check workflow now reads upstreamVersion from horizon package.json instead of comparing mismatched release tags
+
 ## [0.3.1] - 2026-03-12
 
 ### Changed
