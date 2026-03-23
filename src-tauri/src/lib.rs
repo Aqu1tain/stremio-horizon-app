@@ -1,11 +1,11 @@
 use std::net::TcpStream;
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Child, Command};
 use std::sync::{mpsc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 use tauri::webview::WebviewWindowBuilder;
-use tauri::{Manager, WebviewUrl};
+use tauri::{Manager, RunEvent, WebviewUrl};
 use threadpool::ThreadPool;
 
 mod chromecast;
@@ -23,15 +23,92 @@ const EXT_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const SVC_TIMEOUT: Duration = Duration::from_secs(60);
 const SVC_CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 
+struct ServiceProcess {
+    child: Child,
+    #[cfg(target_os = "windows")]
+    _job: Option<windows_job::JobHandle>,
+}
+
+impl ServiceProcess {
+    fn kill(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+impl Drop for ServiceProcess {
+    fn drop(&mut self) {
+        self.kill();
+    }
+}
+
+#[cfg(target_os = "windows")]
+mod windows_job {
+    use std::os::windows::io::AsRawHandle;
+    use windows_sys::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows_sys::Win32::System::JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
+        SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+    };
+
+    pub struct JobHandle(HANDLE);
+
+    unsafe impl Send for JobHandle {}
+    unsafe impl Sync for JobHandle {}
+
+    impl Drop for JobHandle {
+        fn drop(&mut self) {
+            unsafe { CloseHandle(self.0); }
+        }
+    }
+
+    pub fn assign_child_to_kill_on_close_job(
+        child: &std::process::Child,
+    ) -> Option<JobHandle> {
+        unsafe {
+            let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
+            if job == 0 {
+                return None;
+            }
+
+            let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
+            info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+
+            let ok = SetInformationJobObject(
+                job,
+                JobObjectExtendedLimitInformation,
+                &info as *const _ as *const _,
+                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            );
+            if ok == 0 {
+                CloseHandle(job);
+                return None;
+            }
+
+            let ok = AssignProcessToJobObject(job, child.as_raw_handle() as _);
+            if ok == 0 {
+                CloseHandle(job);
+                return None;
+            }
+
+            Some(JobHandle(job))
+        }
+    }
+}
+
+type ServiceState = Mutex<Option<ServiceProcess>>;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(target_os = "linux")]
     std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
 
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Mutex::new(chromecast::CastManagerState::default()))
+        .manage(Mutex::new(None::<ServiceProcess>))
         .invoke_handler(tauri::generate_handler![
             chromecast::chromecast_discover,
             chromecast::chromecast_connect,
@@ -45,7 +122,12 @@ pub fn run() {
         ])
         .setup(|app| {
             start_local_server(app);
-            spawn_streaming_service(app);
+
+            let service = spawn_streaming_service(app);
+            if let Some(svc) = service {
+                *app.state::<ServiceState>().lock().unwrap() = Some(svc);
+            }
+
             wait_for_service();
             create_window(app)?;
 
@@ -56,8 +138,16 @@ pub fn run() {
 
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    app.run(|app, event| {
+        if let RunEvent::Exit = event {
+            if let Some(mut svc) = app.state::<ServiceState>().lock().unwrap().take() {
+                svc.kill();
+            }
+        }
+    });
 }
 
 fn wait_for_service() {
@@ -290,10 +380,10 @@ fn forward_response(request: tiny_http::Request, resp: ureq::Response) {
     ));
 }
 
-fn spawn_streaming_service(app: &tauri::App) {
+fn spawn_streaming_service(app: &tauri::App) -> Option<ServiceProcess> {
     let Some(dir) = find_binaries_dir(app) else {
         eprintln!("stremio binaries directory not found");
-        return;
+        return None;
     };
 
     let mut cmd = Command::new(dir.join(bin_name("stremio-runtime")));
@@ -310,8 +400,26 @@ fn spawn_streaming_service(app: &tauri::App) {
     }
 
     match cmd.spawn() {
-        Ok(_) => println!("server.js started from {}", dir.display()),
-        Err(e) => eprintln!("server.js failed to start: {e}"),
+        Ok(child) => {
+            println!("server.js started from {}", dir.display());
+
+            #[cfg(target_os = "windows")]
+            let _job = windows_job::assign_child_to_kill_on_close_job(&child);
+            #[cfg(target_os = "windows")]
+            if _job.is_none() {
+                eprintln!("failed to assign service to job object");
+            }
+
+            Some(ServiceProcess {
+                child,
+                #[cfg(target_os = "windows")]
+                _job,
+            })
+        }
+        Err(e) => {
+            eprintln!("server.js failed to start: {e}");
+            None
+        }
     }
 }
 

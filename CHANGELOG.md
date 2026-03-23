@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ### Fixed
 
+- Kill stremio-service on app exit instead of leaving it running (#16)
 - Upstream check workflow now reads upstreamVersion from horizon package.json instead of comparing mismatched release tags
 
 ## [0.3.1] - 2026-03-12
