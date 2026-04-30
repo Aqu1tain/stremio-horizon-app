@@ -31,13 +31,11 @@ pub fn load(app: &AppHandle) -> Config {
         .unwrap_or_default()
 }
 
-pub fn save(app: &AppHandle, config: &Config) {
-    let Ok(dir) = app.path().app_config_dir() else {
-        return;
-    };
-    let _ = fs::create_dir_all(&dir);
+pub fn save(app: &AppHandle, config: &Config) -> Result<(), String> {
+    let dir = app.path().app_config_dir().map_err(|e| format!("config dir: {e}"))?;
+    fs::create_dir_all(&dir).map_err(|e| format!("create config dir {}: {e}", dir.display()))?;
     let path = dir.join(CONFIG_FILE);
-    if let Ok(json) = serde_json::to_string_pretty(config) {
-        let _ = fs::write(path, json);
-    }
+    let json = serde_json::to_string_pretty(config).map_err(|e| format!("serialize config: {e}"))?;
+    fs::write(&path, json).map_err(|e| format!("write {}: {e}", path.display()))?;
+    Ok(())
 }

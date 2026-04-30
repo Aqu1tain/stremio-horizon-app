@@ -322,6 +322,17 @@ fn resolve_asset(
             resp = resp.with_header(h);
         }
     }
+    // Frontend assets are versioned by commit hash in their path, so they're safe to
+    // cache forever. The root entry point must always be revalidated so a new build
+    // is picked up immediately.
+    let cache_control = if is_root {
+        "no-cache"
+    } else {
+        "public, max-age=31536000, immutable"
+    };
+    if let Ok(h) = header("Cache-Control", cache_control) {
+        resp = resp.with_header(h);
+    }
     Some(resp)
 }
 

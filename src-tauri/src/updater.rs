@@ -65,8 +65,11 @@ pub fn get_auto_update_enabled(app: AppHandle) -> bool {
 }
 
 #[tauri::command]
-pub fn set_auto_update_enabled(app: AppHandle, enabled: bool) {
+pub fn set_auto_update_enabled(app: AppHandle, enabled: bool) -> Result<(), String> {
     let mut cfg = config::load(&app);
     cfg.auto_update = enabled;
-    config::save(&app, &cfg);
+    config::save(&app, &cfg).map_err(|e| {
+        eprintln!("failed to persist auto_update setting: {e}");
+        e
+    })
 }
