@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ### Fixed
 
+- Cap Chromecast message size at 8MB to prevent malicious receivers triggering 4GB allocations (#35)
 - Kill stremio-service on app exit instead of leaving it running (#16)
 - Show warning banner when streaming service fails to start instead of silently continuing
 - Upstream check workflow now reads upstreamVersion from horizon package.json instead of comparing mismatched release tags

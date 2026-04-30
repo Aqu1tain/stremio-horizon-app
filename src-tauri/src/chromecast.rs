@@ -21,6 +21,10 @@ const READ_TIMEOUT: Duration = Duration::from_millis(500);
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 const DISCOVERY_DURATION: Duration = Duration::from_secs(5);
 
+// CASTV2 messages are typically <64KB; cap allocation to defend against a
+// malicious receiver claiming u32::MAX and triggering a 4GB allocation.
+const MAX_CAST_MESSAGE_LEN: usize = 8 * 1024 * 1024;
+
 // --- Protobuf encoding/decoding ---
 
 fn encode_varint(buf: &mut Vec<u8>, mut value: u64) {
@@ -182,6 +186,9 @@ impl CastConnection {
             Err(e) => return Err(format!("recv len: {e}")),
         }
         let len = u32::from_be_bytes(len_buf) as usize;
+        if len > MAX_CAST_MESSAGE_LEN {
+            return Err(format!("recv msg: length {len} exceeds cap {MAX_CAST_MESSAGE_LEN}"));
+        }
         let mut buf = vec![0u8; len];
         self.stream.read_exact(&mut buf).map_err(|e| format!("recv msg: {e}"))?;
         decode_cast_message(&buf).map(Some)
