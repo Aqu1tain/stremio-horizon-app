@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ### Fixed
 
+- Cache hashed frontend assets with `immutable` headers; force revalidation only on the root entry point (#36)
+- Surface config save errors instead of silently discarding them, so settings can no longer be lost without warning (#37)
 - Cap Chromecast message size at 8MB to prevent malicious receivers triggering 4GB allocations (#35)
 - Drop guard for mDNS daemon so failed Chromecast discovery no longer leaks daemons (#35)
 - Catch panics in Chromecast session thread and emit NOT_CONNECTED state instead of zombie-ing (#35)
