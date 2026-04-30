@@ -1,5 +1,6 @@
 use std::io::{Read, Write};
 use std::net::TcpStream;
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::mpsc::{self, Receiver, Sender, TryRecvError};
 use std::sync::Mutex;
 use std::thread::{self, JoinHandle};
@@ -7,6 +8,7 @@ use std::time::{Duration, Instant};
 
 use native_tls::TlsConnector;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use tauri::{AppHandle, Manager, State};
 
 const HEARTBEAT_NS: &str = "urn:x-cast:com.google.cast.tp.heartbeat";
@@ -214,16 +216,14 @@ impl CastConnection {
 
     fn launch_app(&mut self, app_id: &str) -> Result<u32, String> {
         let req_id = self.next_request_id();
-        let payload = format!(r#"{{"type":"LAUNCH","appId":"{app_id}","requestId":{req_id}}}"#);
+        let payload = json!({ "type": "LAUNCH", "appId": app_id, "requestId": req_id }).to_string();
         self.send(SENDER_ID, RECEIVER_ID, RECEIVER_NS, &payload)?;
         Ok(req_id)
     }
 
     fn stop_app(&mut self, session_id: &str) -> Result<(), String> {
         let req_id = self.next_request_id();
-        let payload = format!(
-            r#"{{"type":"STOP","sessionId":"{session_id}","requestId":{req_id}}}"#
-        );
+        let payload = json!({ "type": "STOP", "sessionId": session_id, "requestId": req_id }).to_string();
         self.send(SENDER_ID, RECEIVER_ID, RECEIVER_NS, &payload)
     }
 
@@ -270,11 +270,8 @@ fn emit_event(app: &AppHandle, event: &str, payload: &str) {
 }
 
 fn emit_state(app: &AppHandle, cast_state: &str, session_state: &str) {
-    emit_event(
-        app,
-        "chromecast:state-changed",
-        &format!(r#"{{"castState":"{cast_state}","sessionState":"{session_state}"}}"#),
-    );
+    let payload = json!({ "castState": cast_state, "sessionState": session_state }).to_string();
+    emit_event(app, "chromecast:state-changed", &payload);
 }
 
 fn cast_session_loop(
@@ -475,10 +472,20 @@ pub type CastManager = Mutex<CastManagerState>;
 
 // --- Tauri commands ---
 
+// Drop guard so the daemon is shut down even if discovery returns early via `?`.
+struct MdnsDaemon(mdns_sd::ServiceDaemon);
+
+impl Drop for MdnsDaemon {
+    fn drop(&mut self) {
+        let _ = self.0.shutdown();
+    }
+}
+
 #[tauri::command]
 pub fn chromecast_discover() -> Result<Vec<DeviceInfo>, String> {
-    let mdns = mdns_sd::ServiceDaemon::new().map_err(|e| format!("mdns init: {e}"))?;
+    let mdns = MdnsDaemon(mdns_sd::ServiceDaemon::new().map_err(|e| format!("mdns init: {e}"))?);
     let receiver = mdns
+        .0
         .browse("_googlecast._tcp.local.")
         .map_err(|e| format!("mdns browse: {e}"))?;
 
@@ -506,7 +513,6 @@ pub fn chromecast_discover() -> Result<Vec<DeviceInfo>, String> {
         }
     }
 
-    let _ = mdns.shutdown();
     Ok(devices)
 }
 
@@ -535,7 +541,16 @@ pub fn chromecast_connect(
     let app = app_handle.clone();
 
     let handle = thread::spawn(move || {
-        cast_session_loop(conn, cmd_rx, app, device_name);
+        // A panic in the cast loop would silently die and leave the cast state
+        // looking connected; surface it as a NOT_CONNECTED state instead.
+        let panic_app = app.clone();
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            cast_session_loop(conn, cmd_rx, app, device_name);
+        }));
+        if let Err(e) = result {
+            eprintln!("chromecast: cast session thread panicked: {e:?}");
+            emit_state(&panic_app, "NOT_CONNECTED", "NO_SESSION");
+        }
     });
 
     mgr.cmd_tx = Some(cmd_tx);

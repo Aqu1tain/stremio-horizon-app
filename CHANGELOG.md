@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 ### Fixed
 
 - Cap Chromecast message size at 8MB to prevent malicious receivers triggering 4GB allocations (#35)
+- Drop guard for mDNS daemon so failed Chromecast discovery no longer leaks daemons (#35)
+- Catch panics in Chromecast session thread and emit NOT_CONNECTED state instead of zombie-ing (#35)
+- Use `serde_json::json!` for Chromecast LAUNCH/STOP/state payloads instead of manual `format!` (#35)
 - Kill stremio-service on app exit instead of leaving it running (#16)
 - Show warning banner when streaming service fails to start instead of silently continuing
 - Upstream check workflow now reads upstreamVersion from horizon package.json instead of comparing mismatched release tags
