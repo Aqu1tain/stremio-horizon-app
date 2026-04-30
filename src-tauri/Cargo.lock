@@ -3683,6 +3683,7 @@ dependencies = [
  "tiny_http",
  "ureq",
  "webkit2gtk",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
