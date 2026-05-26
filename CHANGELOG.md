@@ -7,12 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-05-26
+
 ### Changed
 
+- Updated frontend to stremio-horizon v0.1.4
+- Update checks now keep the pending update object until the user installs it
+- Added a Tauri-only auto-update setting and manual pending-update recovery in the banner
 - Reuse TCP connections and threads in proxy server (connection pooling via ureq agents, threadpool instead of raw thread::spawn)
 
 ### Fixed
 
+- Install now uses the already-discovered update instead of randomly rechecking
+- Restart after update install was verified in a packaged macOS app
 - Cache hashed frontend assets with `immutable` headers; force revalidation only on the root entry point (#36)
 - Surface config save errors instead of silently discarding them, so settings can no longer be lost without warning (#37)
 - Cap Chromecast message size at 8MB to prevent malicious receivers triggering 4GB allocations (#35)
@@ -100,7 +107,8 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 - Use fixed port to persist session across restarts
 - Bypass CORS for stremio-service communication
 
-[Unreleased]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.2.2...v0.3.0
 [0.2.2]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.2.1...v0.2.2
