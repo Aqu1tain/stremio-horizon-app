@@ -68,7 +68,7 @@ mod windows_job {
     ) -> Option<JobHandle> {
         unsafe {
             let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
-            if job == 0 {
+            if job.is_null() {
                 return None;
             }
 
