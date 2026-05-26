@@ -108,6 +108,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Mutex::new(chromecast::CastManagerState::default()))
+        .manage(updater::SharedUpdateState::default())
         .manage(Mutex::new(None::<ServiceProcess>))
         .invoke_handler(tauri::generate_handler![
             chromecast::chromecast_discover,
@@ -117,6 +118,8 @@ pub fn run() {
             chromecast::chromecast_disconnect,
             chromecast::chromecast_get_device_name,
             updater::install_update,
+            updater::check_for_updates_now,
+            updater::get_pending_update,
             updater::get_auto_update_enabled,
             updater::set_auto_update_enabled,
         ])
