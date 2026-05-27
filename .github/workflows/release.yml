@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      frontend_version:
+        description: 'stremio-horizon release tag to bundle (e.g. v0.1.4)'
+        required: true
+        default: 'v0.1.4'
 
 permissions:
   contents: write
@@ -14,10 +20,11 @@ jobs:
     steps:
       - name: Download latest stremio-horizon release
         run: |
-          gh release download --repo Aqu1tain/stremio-horizon v0.1.4 --pattern 'stremio-web.zip'
+          gh release download --repo Aqu1tain/stremio-horizon "$FRONTEND_VERSION" --pattern 'stremio-web.zip'
           unzip stremio-web.zip
         env:
           GH_TOKEN: ${{ github.token }}
+          FRONTEND_VERSION: ${{ inputs.frontend_version || 'v0.1.4' }}
 
       - uses: actions/upload-artifact@v4
         with:
