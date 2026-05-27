@@ -13,6 +13,8 @@ mod config;
 mod debug;
 mod updater;
 
+pub use updater::{snapshot_pending, UpdateState};
+
 pub(crate) const PORT: u16 = 11480;
 pub(crate) const SERVICE_PORT: u16 = 11470;
 const SERVICE_TIMEOUT: Duration = Duration::from_secs(15);
