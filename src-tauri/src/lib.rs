@@ -101,10 +101,15 @@ mod windows_job {
 type ServiceState = Mutex<Option<ServiceProcess>>;
 
 fn init_tracing() {
-    use tracing_subscriber::{fmt, EnvFilter};
+    use tracing_subscriber::{fmt, prelude::*, EnvFilter};
+    debug::init_rings();
     let filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new("info"));
-    let _ = fmt().json().with_env_filter(filter).try_init();
+    let _ = tracing_subscriber::registry()
+        .with(filter)
+        .with(fmt::layer().json())
+        .with(debug::RingLayer)
+        .try_init();
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

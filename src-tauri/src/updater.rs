@@ -1,8 +1,9 @@
 use std::sync::Mutex;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_updater::{Update, UpdaterExt};
 
 use crate::config;
+use crate::debug;
 
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct UpdateInfo {
@@ -31,35 +32,23 @@ impl From<&Update> for UpdateInfo {
 
 pub type SharedUpdateState = Mutex<UpdateState>;
 
-fn emit_event<T: serde::Serialize>(app: &AppHandle, event: &str, payload: &T) {
-    if let Some(window) = app.get_webview_window("main") {
-        let Ok(event_json) = serde_json::to_string(event) else {
-            tracing::warn!(
-                scope = "updater",
-                event = "serialize_event_name_failed",
-                name = %event
-            );
-            return;
-        };
-        let Ok(payload_json) = serde_json::to_string(payload) else {
-            tracing::warn!(
-                scope = "updater",
-                event = "serialize_event_payload_failed",
-                name = %event
-            );
-            return;
-        };
-        let js = format!(
-            "window.dispatchEvent(new CustomEvent({event_json}, {{ detail: {payload_json} }}))"
+pub(crate) fn emit_event<T: serde::Serialize>(app: &AppHandle, event: &str, payload: &T) {
+    debug::record_event(event, payload);
+    let Some(window) = app.get_webview_window("main") else {
+        tracing::warn!(
+            scope = "updater",
+            event = "emit_event_no_window",
+            name = %event
         );
-        if let Err(error) = window.eval(&js) {
-            tracing::warn!(
-                scope = "updater",
-                event = "emit_event_failed",
-                name = %event,
-                %error
-            );
-        }
+        return;
+    };
+    if let Err(error) = window.emit(event, payload) {
+        tracing::warn!(
+            scope = "updater",
+            event = "emit_event_failed",
+            name = %event,
+            %error
+        );
     }
 }
 
