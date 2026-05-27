@@ -23,6 +23,8 @@ ureq = "2"
 threadpool = "1"
 native-tls = "0.2"
 mdns-sd = "0.11"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects"] }
