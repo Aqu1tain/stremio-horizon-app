@@ -197,8 +197,32 @@ struct JsonVisitor {
     fields: serde_json::Map<String, serde_json::Value>,
 }
 
+fn redact_paths(s: &str) -> String {
+    let mut out = redact_prefix(s, "/Users/", '/');
+    out = redact_prefix(&out, "/home/", '/');
+    redact_prefix(&out, "C:\\Users\\", '\\')
+}
+
+fn redact_prefix(s: &str, prefix: &str, sep: char) -> String {
+    let mut result = String::with_capacity(s.len());
+    let mut rest = s;
+    while let Some(pos) = rest.find(prefix) {
+        result.push_str(&rest[..pos]);
+        rest = &rest[pos + prefix.len()..];
+        let end = rest.find(sep).unwrap_or(rest.len());
+        result.push_str("<redacted-path>");
+        rest = &rest[end..];
+    }
+    result.push_str(rest);
+    result
+}
+
 impl JsonVisitor {
     fn assign(&mut self, field: &Field, value: serde_json::Value) {
+        let value = match value {
+            serde_json::Value::String(s) => serde_json::Value::String(redact_paths(&s)),
+            other => other,
+        };
         match field.name() {
             "scope" => self.scope = value.as_str().map(String::from),
             "event" => self.event = value.as_str().map(String::from),
@@ -275,3 +299,50 @@ pub fn debug_logs() -> DebugLogs {
         .unwrap_or_default();
     DebugLogs { recent }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::redact_paths;
+
+    #[test]
+    fn redacts_macos_home() {
+        assert_eq!(
+            redact_paths("/Users/coren/Library/Application Support/foo"),
+            "<redacted-path>/Library/Application Support/foo"
+        );
+    }
+
+    #[test]
+    fn redacts_linux_home() {
+        assert_eq!(
+            redact_paths("write /home/coren/foo.bar: error"),
+            "write <redacted-path>/foo.bar: error"
+        );
+    }
+
+    #[test]
+    fn redacts_windows_home() {
+        assert_eq!(
+            redact_paths("C:\\Users\\coren\\AppData\\Local"),
+            "<redacted-path>\\AppData\\Local"
+        );
+    }
+
+    #[test]
+    fn passes_through_strings_without_prefixes() {
+        assert_eq!(redact_paths("hello world"), "hello world");
+        assert_eq!(redact_paths(""), "");
+        // Embedded /home/ substrings are intentionally over-redacted to err on
+        // the side of caution; the redactor is a conservative tap, not a parser.
+        assert_eq!(redact_paths("/not/a/home/path"), "/not/a<redacted-path>");
+    }
+
+    #[test]
+    fn redacts_multiple_paths_in_one_string() {
+        assert_eq!(
+            redact_paths("/Users/a/x and /home/b/y"),
+            "<redacted-path>/x and <redacted-path>/y"
+        );
+    }
+}
+
