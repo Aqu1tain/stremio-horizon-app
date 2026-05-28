@@ -1,14 +1,19 @@
+use std::collections::VecDeque;
 use std::net::{SocketAddr, TcpStream};
-use std::sync::OnceLock;
-use std::time::Duration;
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
+use tracing::field::{Field, Visit};
+use tracing::{Event, Subscriber};
+use tracing_subscriber::layer::{Context, Layer};
 
 use crate::config;
 use crate::updater::{self, SharedUpdateState, UpdateInfo};
 
 const SERVICE_PROBE_TIMEOUT: Duration = Duration::from_millis(200);
+const RING_CAPACITY: usize = 200;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "status", rename_all = "snake_case")]
@@ -110,22 +115,234 @@ pub fn debug_updater(state: State<'_, SharedUpdateState>) -> DebugUpdater {
     }
 }
 
+// -------- ring buffers --------
+
+struct RingBuffer<T> {
+    items: VecDeque<T>,
+    capacity: usize,
+}
+
+impl<T> RingBuffer<T> {
+    fn new(capacity: usize) -> Self {
+        Self {
+            items: VecDeque::with_capacity(capacity),
+            capacity,
+        }
+    }
+
+    fn push(&mut self, item: T) {
+        if self.items.len() == self.capacity {
+            self.items.pop_front();
+        }
+        self.items.push_back(item);
+    }
+
+    fn snapshot(&self) -> Vec<T>
+    where
+        T: Clone,
+    {
+        self.items.iter().cloned().collect()
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct EventRecord {
+    timestamp_ms: u64,
+    name: String,
+    payload: serde_json::Value,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct LogRecord {
+    timestamp_ms: u64,
+    level: String,
+    scope: Option<String>,
+    event: Option<String>,
+    fields: serde_json::Map<String, serde_json::Value>,
+}
+
+static EVENT_RING: OnceLock<Arc<Mutex<RingBuffer<EventRecord>>>> = OnceLock::new();
+static LOG_RING: OnceLock<Arc<Mutex<RingBuffer<LogRecord>>>> = OnceLock::new();
+
+pub fn init_rings() {
+    let _ = EVENT_RING.set(Arc::new(Mutex::new(RingBuffer::new(RING_CAPACITY))));
+    let _ = LOG_RING.set(Arc::new(Mutex::new(RingBuffer::new(RING_CAPACITY))));
+}
+
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+pub fn record_event<T: serde::Serialize>(name: &str, payload: &T) {
+    let payload = serde_json::to_value(payload).unwrap_or(serde_json::Value::Null);
+    let record = EventRecord {
+        timestamp_ms: now_ms(),
+        name: name.to_string(),
+        payload,
+    };
+    if let Some(ring) = EVENT_RING.get() {
+        if let Ok(mut guard) = ring.lock() {
+            guard.push(record);
+        }
+    }
+}
+
+#[derive(Default)]
+struct JsonVisitor {
+    scope: Option<String>,
+    event: Option<String>,
+    fields: serde_json::Map<String, serde_json::Value>,
+}
+
+fn redact_paths(s: &str) -> String {
+    let mut out = redact_prefix(s, "/Users/", '/');
+    out = redact_prefix(&out, "/home/", '/');
+    redact_prefix(&out, "C:\\Users\\", '\\')
+}
+
+fn redact_prefix(s: &str, prefix: &str, sep: char) -> String {
+    let mut result = String::with_capacity(s.len());
+    let mut rest = s;
+    while let Some(pos) = rest.find(prefix) {
+        result.push_str(&rest[..pos]);
+        rest = &rest[pos + prefix.len()..];
+        let end = rest.find(sep).unwrap_or(rest.len());
+        result.push_str("<redacted-path>");
+        rest = &rest[end..];
+    }
+    result.push_str(rest);
+    result
+}
+
+impl JsonVisitor {
+    fn assign(&mut self, field: &Field, value: serde_json::Value) {
+        let value = match value {
+            serde_json::Value::String(s) => serde_json::Value::String(redact_paths(&s)),
+            other => other,
+        };
+        match field.name() {
+            "scope" => self.scope = value.as_str().map(String::from),
+            "event" => self.event = value.as_str().map(String::from),
+            other => {
+                self.fields.insert(other.to_string(), value);
+            }
+        }
+    }
+}
+
+impl Visit for JsonVisitor {
+    fn record_str(&mut self, field: &Field, value: &str) {
+        self.assign(field, serde_json::Value::String(value.to_string()));
+    }
+    fn record_i64(&mut self, field: &Field, value: i64) {
+        self.assign(field, serde_json::Value::Number(value.into()));
+    }
+    fn record_u64(&mut self, field: &Field, value: u64) {
+        self.assign(field, serde_json::Value::Number(value.into()));
+    }
+    fn record_bool(&mut self, field: &Field, value: bool) {
+        self.assign(field, serde_json::Value::Bool(value));
+    }
+    fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
+        self.assign(field, serde_json::Value::String(format!("{value:?}")));
+    }
+}
+
+pub struct RingLayer;
+
+impl<S: Subscriber> Layer<S> for RingLayer {
+    fn on_event(&self, event: &Event<'_>, _ctx: Context<'_, S>) {
+        let mut visitor = JsonVisitor::default();
+        event.record(&mut visitor);
+        let record = LogRecord {
+            timestamp_ms: now_ms(),
+            level: event.metadata().level().to_string(),
+            scope: visitor.scope,
+            event: visitor.event,
+            fields: visitor.fields,
+        };
+        if let Some(ring) = LOG_RING.get() {
+            if let Ok(mut guard) = ring.lock() {
+                guard.push(record);
+            }
+        }
+    }
+}
+
 #[derive(Serialize)]
 pub struct DebugEvents {
-    recent: Vec<serde_json::Value>,
+    recent: Vec<EventRecord>,
 }
 
 #[tauri::command]
 pub fn debug_events() -> DebugEvents {
-    DebugEvents { recent: Vec::new() }
+    let recent = EVENT_RING
+        .get()
+        .and_then(|r| r.lock().ok().map(|g| g.snapshot()))
+        .unwrap_or_default();
+    DebugEvents { recent }
 }
 
 #[derive(Serialize)]
 pub struct DebugLogs {
-    recent: Vec<serde_json::Value>,
+    recent: Vec<LogRecord>,
 }
 
 #[tauri::command]
 pub fn debug_logs() -> DebugLogs {
-    DebugLogs { recent: Vec::new() }
+    let recent = LOG_RING
+        .get()
+        .and_then(|r| r.lock().ok().map(|g| g.snapshot()))
+        .unwrap_or_default();
+    DebugLogs { recent }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::redact_paths;
+
+    #[test]
+    fn redacts_macos_home() {
+        assert_eq!(
+            redact_paths("/Users/coren/Library/Application Support/foo"),
+            "<redacted-path>/Library/Application Support/foo"
+        );
+    }
+
+    #[test]
+    fn redacts_linux_home() {
+        assert_eq!(
+            redact_paths("write /home/coren/foo.bar: error"),
+            "write <redacted-path>/foo.bar: error"
+        );
+    }
+
+    #[test]
+    fn redacts_windows_home() {
+        assert_eq!(
+            redact_paths("C:\\Users\\coren\\AppData\\Local"),
+            "<redacted-path>\\AppData\\Local"
+        );
+    }
+
+    #[test]
+    fn passes_through_strings_without_prefixes() {
+        assert_eq!(redact_paths("hello world"), "hello world");
+        assert_eq!(redact_paths(""), "");
+        // Embedded /home/ substrings are intentionally over-redacted to err on
+        // the side of caution; the redactor is a conservative tap, not a parser.
+        assert_eq!(redact_paths("/not/a/home/path"), "/not/a<redacted-path>");
+    }
+
+    #[test]
+    fn redacts_multiple_paths_in_one_string() {
+        assert_eq!(
+            redact_paths("/Users/a/x and /home/b/y"),
+            "<redacted-path>/x and <redacted-path>/y"
+        );
+    }
+}
+
