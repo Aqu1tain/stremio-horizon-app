@@ -302,7 +302,38 @@ pub fn debug_logs() -> DebugLogs {
 
 #[cfg(test)]
 mod tests {
-    use super::redact_paths;
+    use super::*;
+
+    #[test]
+    fn ring_buffer_caps_at_capacity_dropping_oldest() {
+        let mut ring: RingBuffer<i32> = RingBuffer::new(3);
+        for i in 0..6 {
+            ring.push(i);
+        }
+        assert_eq!(ring.snapshot(), vec![3, 4, 5]);
+    }
+
+    #[test]
+    fn ring_buffer_preserves_insertion_order_below_capacity() {
+        let mut ring: RingBuffer<String> = RingBuffer::new(5);
+        ring.push("a".to_string());
+        ring.push("b".to_string());
+        ring.push("c".to_string());
+        assert_eq!(ring.snapshot(), vec!["a".to_string(), "b".to_string(), "c".to_string()]);
+    }
+
+    #[test]
+    fn event_record_serializes_with_expected_fields() {
+        let record = EventRecord {
+            timestamp_ms: 1234,
+            name: "test".to_string(),
+            payload: serde_json::json!({"k": "v"}),
+        };
+        let json = serde_json::to_value(&record).unwrap();
+        assert_eq!(json["timestamp_ms"], 1234);
+        assert_eq!(json["name"], "test");
+        assert_eq!(json["payload"]["k"], "v");
+    }
 
     #[test]
     fn redacts_macos_home() {
