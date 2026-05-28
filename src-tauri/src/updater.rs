@@ -34,18 +34,31 @@ pub type SharedUpdateState = Mutex<UpdateState>;
 fn emit_event<T: serde::Serialize>(app: &AppHandle, event: &str, payload: &T) {
     if let Some(window) = app.get_webview_window("main") {
         let Ok(event_json) = serde_json::to_string(event) else {
-            eprintln!("failed to serialize update event name");
+            tracing::warn!(
+                scope = "updater",
+                event = "serialize_event_name_failed",
+                name = %event
+            );
             return;
         };
         let Ok(payload_json) = serde_json::to_string(payload) else {
-            eprintln!("failed to serialize update event payload");
+            tracing::warn!(
+                scope = "updater",
+                event = "serialize_event_payload_failed",
+                name = %event
+            );
             return;
         };
         let js = format!(
             "window.dispatchEvent(new CustomEvent({event_json}, {{ detail: {payload_json} }}))"
         );
         if let Err(error) = window.eval(&js) {
-            eprintln!("failed to emit update event {event}: {error}");
+            tracing::warn!(
+                scope = "updater",
+                event = "emit_event_failed",
+                name = %event,
+                %error
+            );
         }
     }
 }
@@ -93,7 +106,11 @@ pub async fn check_for_updates(app: AppHandle) {
         Ok(Some(update_info)) => update_info,
         Ok(None) => return,
         Err(error) => {
-            eprintln!("{error}");
+            tracing::error!(
+                scope = "updater",
+                event = "check_for_updates_failed",
+                %error
+            );
             return;
         }
     };
@@ -175,7 +192,18 @@ pub fn set_auto_update_enabled(app: AppHandle, enabled: bool) -> Result<(), Stri
     let mut cfg = config::load(&app);
     cfg.auto_update = enabled;
     config::save(&app, &cfg).map_err(|e| {
-        eprintln!("failed to persist auto_update setting: {e}");
+        tracing::error!(
+            scope = "updater",
+            event = "persist_auto_update_failed",
+            error = %e
+        );
         e
     })
+}
+
+pub fn snapshot_pending(state: &SharedUpdateState) -> Option<UpdateInfo> {
+    state
+        .lock()
+        .ok()
+        .and_then(|s| s.pending.as_ref().map(|pending| pending.info.clone()))
 }

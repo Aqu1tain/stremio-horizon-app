@@ -10,10 +10,11 @@ use threadpool::ThreadPool;
 
 mod chromecast;
 mod config;
+mod debug;
 mod updater;
 
-const PORT: u16 = 11480;
-const SERVICE_PORT: u16 = 11470;
+pub(crate) const PORT: u16 = 11480;
+pub(crate) const SERVICE_PORT: u16 = 11470;
 const SERVICE_TIMEOUT: Duration = Duration::from_secs(15);
 const POLL_INTERVAL: Duration = Duration::from_millis(200);
 const EXT_POOL_SIZE: usize = 8;
@@ -99,10 +100,19 @@ mod windows_job {
 
 type ServiceState = Mutex<Option<ServiceProcess>>;
 
+fn init_tracing() {
+    use tracing_subscriber::{fmt, EnvFilter};
+    let filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new("info"));
+    let _ = fmt().json().with_env_filter(filter).try_init();
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(target_os = "linux")]
     std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+
+    init_tracing();
 
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -122,6 +132,11 @@ pub fn run() {
             updater::get_pending_update,
             updater::get_auto_update_enabled,
             updater::set_auto_update_enabled,
+            debug::debug_build,
+            debug::debug_state,
+            debug::debug_updater,
+            debug::debug_events,
+            debug::debug_logs,
         ])
         .setup(|app| {
             start_local_server(app);
