@@ -248,14 +248,19 @@ const FULLSCREEN_BRIDGE: &str = r#"
     // the Window menu. Those resize the webview without touching the mirror below, which
     // would leave document.fullscreenElement lying to the UI. Re-read the real window
     // state on resize so the toggle stays honest.
-    let syncTimer = null;
+    // macOS animates the fullscreen transition and emits a single resize part way through
+    // it, while the window still reports the old state — measured, it only reads correctly
+    // around 600ms in. So re-check a few times until it settles rather than trusting one
+    // early answer.
+    const RESYNC_DELAYS = [150, 600, 1200, 2000];
+    let syncTimers = [];
     const syncFromWindow = () => {
-        clearTimeout(syncTimer);
-        syncTimer = setTimeout(() => {
+        syncTimers.forEach(clearTimeout);
+        syncTimers = RESYNC_DELAYS.map((delay) => setTimeout(() => {
             invoke('plugin:window|is_fullscreen', { label: 'main' }).then((value) => {
                 if (typeof value === 'boolean') applyFullscreen(value);
             });
-        }, 100);
+        }, delay));
     };
 
     document._tauriFullscreen = false;
