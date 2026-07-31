@@ -227,18 +227,55 @@ fn create_window(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>>
 
 const FULLSCREEN_BRIDGE: &str = r#"
 (function() {
-    const setFullscreen = (value) => {
+    const invoke = (cmd, args) => {
         const tauri = window.__TAURI_INTERNALS__;
         if (!tauri?.invoke) return Promise.resolve();
-        return tauri.invoke('plugin:window|set_fullscreen', { label: 'main', value }).then(() => {
-            document._tauriFullscreen = value;
-            document.dispatchEvent(new Event('fullscreenchange'));
-        });
+        return tauri.invoke(cmd, args);
+    };
+
+    const applyFullscreen = (value) => {
+        if (value === document._tauriFullscreen) return;
+        document._tauriFullscreen = value;
+        document.dispatchEvent(new Event('fullscreenchange'));
+    };
+
+    // macOS animates the transition and emits a single resize part way through it, while the
+    // window still reports its old state: measured from inside the webview, it answers stale
+    // at 150ms and only reads correctly around 600ms. So never poll before it has settled,
+    // and keep checking afterwards in case the machine is slower.
+    const RESYNC_DELAYS = [600, 1200, 2000];
+
+    // While we are driving the transition ourselves the mirror is already correct, so a poll
+    // landing mid-animation could only tell us something stale and flip the toggle back.
+    // Ignore answers for the length of the animation; the later polls still verify.
+    const LOCAL_TRANSITION_MS = 1000;
+    let trustWindowFrom = 0;
+
+    const setFullscreen = (value) => {
+        trustWindowFrom = Date.now() + LOCAL_TRANSITION_MS;
+        return invoke('plugin:window|set_fullscreen', { label: 'main', value })
+            .then(() => applyFullscreen(value));
+    };
+
+    // Fullscreen can also be left without going through us — the green button, Cmd+Ctrl+F,
+    // the Window menu. Those resize the webview without touching the mirror above, which
+    // would leave document.fullscreenElement lying to the UI, so re-read the real window
+    // state on resize.
+    let syncTimers = [];
+    const syncFromWindow = () => {
+        syncTimers.forEach(clearTimeout);
+        syncTimers = RESYNC_DELAYS.map((delay) => setTimeout(() => {
+            if (Date.now() < trustWindowFrom) return;
+            invoke('plugin:window|is_fullscreen', { label: 'main' }).then((value) => {
+                if (typeof value === 'boolean') applyFullscreen(value);
+            });
+        }, delay));
     };
 
     document._tauriFullscreen = false;
     Element.prototype.requestFullscreen = function() { return setFullscreen(true); };
     document.exitFullscreen = function() { return setFullscreen(false); };
+    window.addEventListener('resize', syncFromWindow);
 
     Object.defineProperty(document, 'fullscreenElement', {
         get() { return document._tauriFullscreen ? document.documentElement : null; },
