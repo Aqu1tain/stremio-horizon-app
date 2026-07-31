@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       frontend_version:
-        description: 'stremio-horizon release tag to bundle (e.g. v0.1.5)'
+        description: 'stremio-horizon release tag to bundle (e.g. v0.1.6)'
         required: true
-        default: 'v0.1.5'
+        default: 'v0.1.6'
       service_version:
         description: 'stremio-service fork tag to build (e.g. v0.1.0-horizon.2)'
         required: true
@@ -28,7 +28,7 @@ jobs:
           unzip stremio-web.zip
         env:
           GH_TOKEN: ${{ github.token }}
-          FRONTEND_VERSION: ${{ inputs.frontend_version || 'v0.1.5' }}
+          FRONTEND_VERSION: ${{ inputs.frontend_version || 'v0.1.6' }}
 
       - uses: actions/upload-artifact@v4
         with:

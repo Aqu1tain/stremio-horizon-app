@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-07-31
+
+### Changed
+
+- Updated frontend to stremio-horizon v0.1.6
+
 ### Fixed
 
 - Block the external HTTP proxy from reaching loopback, private, link-local, and other non-public
@@ -141,7 +147,8 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 - Use fixed port to persist session across restarts
 - Bypass CORS for stremio-service communication
 
-[Unreleased]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.3.3...HEAD
+[Unreleased]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.3.4...HEAD
+[0.3.4]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.3.0...v0.3.1
