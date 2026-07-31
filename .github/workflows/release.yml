@@ -10,6 +10,10 @@ on:
         description: 'stremio-horizon release tag to bundle (e.g. v0.1.4)'
         required: true
         default: 'v0.1.4'
+      service_version:
+        description: 'stremio-service fork tag to build (e.g. v0.1.0-horizon.2)'
+        required: true
+        default: 'v0.1.0-horizon.2'
 
 permissions:
   contents: write
@@ -109,7 +113,11 @@ jobs:
 
       - name: Clone stremio-service fork
         shell: bash
-        run: rm -rf "$RUNNER_TEMP/stremio-service" && git clone https://github.com/Aqu1tain/stremio-service "$RUNNER_TEMP/stremio-service"
+        run: |
+          rm -rf "$RUNNER_TEMP/stremio-service"
+          git clone --depth 1 --branch "$SERVICE_VERSION" https://github.com/Aqu1tain/stremio-service "$RUNNER_TEMP/stremio-service"
+        env:
+          SERVICE_VERSION: ${{ inputs.service_version || 'v0.1.0-horizon.2' }}
 
       - name: Build stremio-service
         shell: bash

@@ -49,7 +49,15 @@ pnpm install
 
 2. Place stremio-service binaries in `src-tauri/binaries/`:
 
-Download from [stremio-service releases](https://github.com/Aqu1tain/stremio-service/releases) or build from source. You need: `stremio-service`, `server.js`, `stremio-runtime`, `ffmpeg`, `ffprobe`.
+The fork is source-only, so build it at the tag the release workflow uses:
+
+```bash
+git clone --branch v0.1.0-horizon.2 https://github.com/Aqu1tain/stremio-service
+cd stremio-service
+cargo build --release --features bundled
+```
+
+Copy `target/release/stremio-service` and everything in `resources/bin/<os>/` (`server.js`, `stremio-runtime`, `ffmpeg`, `ffprobe`) into `src-tauri/binaries/`.
 
 3. Run in development mode:
 
