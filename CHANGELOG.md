@@ -13,8 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ### Changed
 
+- Updated frontend to stremio-horizon v0.1.5-rc.1
 - Release workflow now builds stremio-service from the pinned fork tag `v0.1.0-horizon.2` instead of
   whatever `master` happens to be, with a `service_version` input to override it
+- Release workflow marks a release as a pre-release when the tag carries a suffix, so release
+  candidates no longer publish as stable and are skipped by the updater
 
 ### Fixed
 
