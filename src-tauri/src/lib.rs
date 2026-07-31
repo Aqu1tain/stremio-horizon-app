@@ -11,6 +11,7 @@ use threadpool::ThreadPool;
 mod chromecast;
 mod config;
 mod debug;
+mod proxy_security;
 mod updater;
 
 pub use updater::{snapshot_pending, UpdateState};
@@ -321,10 +322,13 @@ fn start_local_server(app: &mut tauri::App) {
     let ext_agent = ureq::AgentBuilder::new()
         .timeout(EXT_TIMEOUT)
         .timeout_connect(EXT_CONNECT_TIMEOUT)
+        .try_proxy_from_env(false)
+        .resolver(proxy_security::PublicResolver)
         .build();
     let svc_agent = ureq::AgentBuilder::new()
         .timeout(SVC_TIMEOUT)
         .timeout_connect(SVC_CONNECT_TIMEOUT)
+        .try_proxy_from_env(false)
         .build();
     let ext_pool = ThreadPool::new(EXT_POOL_SIZE);
     let svc_pool = ThreadPool::new(SVC_POOL_SIZE);
@@ -339,13 +343,16 @@ fn start_local_server(app: &mut tauri::App) {
             let path = raw_url.split('?').next().unwrap_or(&raw_url);
 
             if raw_url.starts_with(EXT_PREFIX) {
-                let Some(target) = external_target(&raw_url) else {
-                    let _ = request.respond(tiny_http::Response::from_string("Bad scheme").with_status_code(400));
-                    continue;
+                let target = match proxy_security::external_target(&raw_url, EXT_PREFIX) {
+                    Ok(target) => target.to_string(),
+                    Err(_) => {
+                        respond_invalid_external_target(request);
+                        continue;
+                    }
                 };
-                let target = target.to_string();
                 let agent = ext_agent.clone();
-                ext_pool.execute(move || proxy_request(request, &target, &agent));
+                ext_pool
+                    .execute(move || proxy_request(request, &target, &agent, ProxyScope::External));
                 continue;
             }
 
@@ -356,22 +363,19 @@ fn start_local_server(app: &mut tauri::App) {
 
             let service_url = format!("http://127.0.0.1:{SERVICE_PORT}{raw_url}");
             let agent = svc_agent.clone();
-            svc_pool.execute(move || proxy_request(request, &service_url, &agent));
+            svc_pool
+                .execute(move || proxy_request(request, &service_url, &agent, ProxyScope::Service));
         }
     });
 
     let _ = rx.recv();
 }
 
-// Reads the target off the raw request URL, query string included: external URLs carry
-// theirs (the streaming server takes `?mediaURL=`, `?audioCodecs=`) and dropping it makes
-// the remote answer 500.
-fn external_target(raw_url: &str) -> Option<&str> {
-    let target = raw_url.strip_prefix(EXT_PREFIX)?;
-    if !target.starts_with("http://") && !target.starts_with("https://") {
-        return None;
-    }
-    Some(target)
+fn respond_invalid_external_target(request: tiny_http::Request) {
+    let _ = request.respond(
+        tiny_http::Response::from_string("Invalid or blocked external target")
+            .with_status_code(400),
+    );
 }
 
 fn resolve_asset(
@@ -415,7 +419,18 @@ fn header(name: &str, value: &str) -> Result<tiny_http::Header, ()> {
 
 const SKIP_HEADERS: &[&str] = &["host", "connection", "origin", "referer"];
 
-fn proxy_request(mut request: tiny_http::Request, url: &str, agent: &ureq::Agent) {
+#[derive(Clone, Copy)]
+enum ProxyScope {
+    External,
+    Service,
+}
+
+fn proxy_request(
+    mut request: tiny_http::Request,
+    url: &str,
+    agent: &ureq::Agent,
+    scope: ProxyScope,
+) {
     let method = request.method().to_string();
 
     let mut proxy = agent.request(&method, url);
@@ -437,10 +452,15 @@ fn proxy_request(mut request: tiny_http::Request, url: &str, agent: &ureq::Agent
 
     match result {
         Ok(resp) | Err(ureq::Error::Status(_, resp)) => forward_response(request, resp),
-        Err(ureq::Error::Transport(e)) => {
+        Err(ureq::Error::Transport(e))
+            if matches!(scope, ProxyScope::External)
+                && proxy_security::is_blocked_destination_error(&e) =>
+        {
+            respond_invalid_external_target(request);
+        }
+        Err(ureq::Error::Transport(_)) => {
             let _ = request.respond(
-                tiny_http::Response::from_string(format!("Service unavailable: {e}"))
-                    .with_status_code(502),
+                tiny_http::Response::from_string("Service unavailable").with_status_code(502),
             );
         }
     }
@@ -547,35 +567,4 @@ fn find_binaries_dir(app: &tauri::App) -> Option<PathBuf> {
 
 fn bin_name(name: &str) -> String {
     if cfg!(windows) { format!("{name}.exe") } else { name.into() }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::external_target;
-
-    #[test]
-    fn keeps_the_query_string_of_an_external_url() {
-        let url = "/__ext__/https://stremio-server.example/hlsv2/probe?mediaURL=magnet%3Ax&audioCodecs=mp3";
-        assert_eq!(
-            external_target(url),
-            Some("https://stremio-server.example/hlsv2/probe?mediaURL=magnet%3Ax&audioCodecs=mp3")
-        );
-    }
-
-    #[test]
-    fn accepts_an_external_url_without_a_query_string() {
-        let url = "/__ext__/http://addon.example/manifest.json";
-        assert_eq!(external_target(url), Some("http://addon.example/manifest.json"));
-    }
-
-    #[test]
-    fn rejects_a_target_that_is_not_http() {
-        assert_eq!(external_target("/__ext__/file:///etc/passwd"), None);
-        assert_eq!(external_target("/__ext__/"), None);
-    }
-
-    #[test]
-    fn ignores_a_url_outside_the_external_prefix() {
-        assert_eq!(external_target("/scripts/main.js?v=1"), None);
-    }
 }
