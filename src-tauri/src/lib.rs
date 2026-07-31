@@ -227,18 +227,41 @@ fn create_window(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>>
 
 const FULLSCREEN_BRIDGE: &str = r#"
 (function() {
-    const setFullscreen = (value) => {
+    const invoke = (cmd, args) => {
         const tauri = window.__TAURI_INTERNALS__;
         if (!tauri?.invoke) return Promise.resolve();
-        return tauri.invoke('plugin:window|set_fullscreen', { label: 'main', value }).then(() => {
-            document._tauriFullscreen = value;
-            document.dispatchEvent(new Event('fullscreenchange'));
-        });
+        return tauri.invoke(cmd, args);
+    };
+
+    const applyFullscreen = (value) => {
+        if (value === document._tauriFullscreen) return;
+        document._tauriFullscreen = value;
+        document.dispatchEvent(new Event('fullscreenchange'));
+    };
+
+    const setFullscreen = (value) => {
+        return invoke('plugin:window|set_fullscreen', { label: 'main', value })
+            .then(() => applyFullscreen(value));
+    };
+
+    // Fullscreen can also be left without going through us — the green button, Cmd+Ctrl+F,
+    // the Window menu. Those resize the webview without touching the mirror below, which
+    // would leave document.fullscreenElement lying to the UI. Re-read the real window
+    // state on resize so the toggle stays honest.
+    let syncTimer = null;
+    const syncFromWindow = () => {
+        clearTimeout(syncTimer);
+        syncTimer = setTimeout(() => {
+            invoke('plugin:window|is_fullscreen', { label: 'main' }).then((value) => {
+                if (typeof value === 'boolean') applyFullscreen(value);
+            });
+        }, 100);
     };
 
     document._tauriFullscreen = false;
     Element.prototype.requestFullscreen = function() { return setFullscreen(true); };
     document.exitFullscreen = function() { return setFullscreen(false); };
+    window.addEventListener('resize', syncFromWindow);
 
     Object.defineProperty(document, 'fullscreenElement', {
         get() { return document._tauriFullscreen ? document.documentElement : null; },
