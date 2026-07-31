@@ -1,0 +1,52 @@
+name: Check
+
+on:
+  push:
+    branches:
+      - development
+  pull_request:
+    branches:
+      - development
+  workflow_dispatch:
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ubuntu-22.04, windows-latest]
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev libssl-dev
+
+      - name: Stub frontend dist and sidecar dir
+        shell: bash
+        run: |
+          mkdir -p dist src-tauri/binaries
+          echo '<!doctype html>' > dist/index.html
+          touch src-tauri/binaries/.gitkeep
+
+      - name: Check
+        working-directory: src-tauri
+        run: cargo check --all-targets
+
+      - name: Test
+        working-directory: src-tauri
+        run: cargo test
