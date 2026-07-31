@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+### Fixed
+
+- External requests lost their query string when the proxy forwarded them, because the target URL
+  was read from the path with the query already split off. A remote streaming server then answered
+  500 to every `hlsv2/probe` call, since `mediaURL` never arrived, and playback failed with "Video
+  is not supported" on every stream. Present since the same-origin proxy landed in 0.2.1; only
+  visible when the streaming server is not on localhost, which is why the bundled service hid it
+
 ### Added
 
 - CI workflow running `cargo check` and `cargo test` on Linux and Windows for every pull request
