@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       frontend_version:
-        description: 'stremio-horizon release tag to bundle (e.g. v0.1.4)'
+        description: 'stremio-horizon release tag to bundle (e.g. v0.1.5-rc.1)'
         required: true
-        default: 'v0.1.4'
+        default: 'v0.1.5-rc.1'
       service_version:
         description: 'stremio-service fork tag to build (e.g. v0.1.0-horizon.2)'
         required: true
@@ -28,7 +28,7 @@ jobs:
           unzip stremio-web.zip
         env:
           GH_TOKEN: ${{ github.token }}
-          FRONTEND_VERSION: ${{ inputs.frontend_version || 'v0.1.4' }}
+          FRONTEND_VERSION: ${{ inputs.frontend_version || 'v0.1.5-rc.1' }}
 
       - uses: actions/upload-artifact@v4
         with:
@@ -48,11 +48,12 @@ jobs:
             -f tag_name=${{ github.ref_name }} \
             -f name=${{ github.ref_name }} \
             -F draft=true \
-            -F prerelease=false \
+            -F prerelease="$PRERELEASE" \
             --jq '.id')
           echo "release_id=$RELEASE_ID" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PRERELEASE: ${{ contains(github.ref_name, '-') }}
 
   build-tauri:
     needs: [build-web, create-release]
