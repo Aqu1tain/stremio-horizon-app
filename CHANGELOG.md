@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 - CI workflow running `cargo check` and `cargo test` on Linux and Windows for every pull request
 
+### Changed
+
+- Release workflow now builds stremio-service from the pinned fork tag `v0.1.0-horizon.2` instead of
+  whatever `master` happens to be, with a `service_version` input to override it
+
 ## [0.3.2] - 2026-05-26
 
 ### Changed
