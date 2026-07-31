@@ -7,13 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
-### Fixed
-
-- External requests lost their query string when the proxy forwarded them, because the target URL
-  was read from the path with the query already split off. A remote streaming server then answered
-  500 to every `hlsv2/probe` call, since `mediaURL` never arrived, and playback failed with "Video
-  is not supported" on every stream. Present since the same-origin proxy landed in 0.2.1; only
-  visible when the streaming server is not on localhost, which is why the bundled service hid it
+## [0.3.3] - 2026-07-31
 
 ### Added
 
@@ -21,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ### Changed
 
-- Updated frontend to stremio-horizon v0.1.5-rc.1
+- Updated frontend to stremio-horizon v0.1.5
 - Release workflow now builds stremio-service from the pinned fork tag `v0.1.0-horizon.2` instead of
   whatever `master` happens to be, with a `service_version` input to override it
 - Release workflow marks a release as a pre-release when the tag carries a suffix, so release
@@ -29,6 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ### Fixed
 
+- External requests lost their query string when the proxy forwarded them, because the target URL
+  was read from the path with the query already split off. A remote streaming server then answered
+  500 to every `hlsv2/probe` call, since `mediaURL` never arrived, and playback failed with "Video
+  is not supported" on every stream. Present since the same-origin proxy landed in 0.2.1; only
+  visible when the streaming server is not on localhost, which is why the bundled service hid it
 - Fullscreen toggle no longer goes stale when the window leaves fullscreen without going through
   the app — the green button, Cmd+Ctrl+F, the Window menu. The bridge kept a local mirror that only
   moved when the frontend called it; it now re-reads the real window state, retrying until the macOS
@@ -135,7 +134,8 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 - Use fixed port to persist session across restarts
 - Bypass CORS for stremio-service communication
 
-[Unreleased]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.3.3...HEAD
+[0.3.3]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.2.2...v0.3.0
