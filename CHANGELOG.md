@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+### Added
+
+- CI workflow running `cargo check` and `cargo test` on Linux and Windows for every pull request
+
 ## [0.3.2] - 2026-05-26
 
 ### Changed
