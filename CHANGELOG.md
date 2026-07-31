@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 - Block the external HTTP proxy from reaching loopback, private, link-local, and other non-public
   destinations, including through DNS answers and redirects (#65)
+- Reload the active WebView when a newly installed service worker takes control, preventing an old
+  cached frontend from requesting removed hashed chunks and leaving the application on a dark screen
 
 ## [0.3.3] - 2026-07-31
 

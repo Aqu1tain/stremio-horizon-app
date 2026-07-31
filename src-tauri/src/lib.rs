@@ -199,6 +199,7 @@ fn create_window(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>>
         .title("Stremio Horizon")
         .inner_size(1280.0, 800.0)
         .min_inner_size(900.0, 600.0)
+        .initialization_script(SERVICE_WORKER_UPDATE_BRIDGE)
         .initialization_script(FULLSCREEN_BRIDGE)
         .initialization_script(FETCH_INTERCEPTOR);
 
@@ -225,6 +226,22 @@ fn create_window(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>>
 
     Ok(())
 }
+
+// This runs before the bundled frontend, including when WebKit serves an older cached entry point.
+// Once the new service worker takes control, reload into its matching precached asset set instead
+// of letting the old page request hashed chunks that no longer exist in the new application.
+const SERVICE_WORKER_UPDATE_BRIDGE: &str = r#"
+(function() {
+    if (!('serviceWorker' in navigator)) return;
+
+    let reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function() {
+        if (reloading) return;
+        reloading = true;
+        window.location.reload();
+    });
+})();
+"#;
 
 const FULLSCREEN_BRIDGE: &str = r#"
 (function() {
