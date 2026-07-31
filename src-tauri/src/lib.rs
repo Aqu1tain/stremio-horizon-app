@@ -338,11 +338,11 @@ fn start_local_server(app: &mut tauri::App) {
             let raw_url = request.url().to_string();
             let path = raw_url.split('?').next().unwrap_or(&raw_url);
 
-            if let Some(target) = path.strip_prefix(EXT_PREFIX) {
-                if !target.starts_with("http://") && !target.starts_with("https://") {
+            if raw_url.starts_with(EXT_PREFIX) {
+                let Some(target) = external_target(&raw_url) else {
                     let _ = request.respond(tiny_http::Response::from_string("Bad scheme").with_status_code(400));
                     continue;
-                }
+                };
                 let target = target.to_string();
                 let agent = ext_agent.clone();
                 ext_pool.execute(move || proxy_request(request, &target, &agent));
@@ -361,6 +361,17 @@ fn start_local_server(app: &mut tauri::App) {
     });
 
     let _ = rx.recv();
+}
+
+// Reads the target off the raw request URL, query string included: external URLs carry
+// theirs (the streaming server takes `?mediaURL=`, `?audioCodecs=`) and dropping it makes
+// the remote answer 500.
+fn external_target(raw_url: &str) -> Option<&str> {
+    let target = raw_url.strip_prefix(EXT_PREFIX)?;
+    if !target.starts_with("http://") && !target.starts_with("https://") {
+        return None;
+    }
+    Some(target)
 }
 
 fn resolve_asset(
@@ -536,4 +547,35 @@ fn find_binaries_dir(app: &tauri::App) -> Option<PathBuf> {
 
 fn bin_name(name: &str) -> String {
     if cfg!(windows) { format!("{name}.exe") } else { name.into() }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::external_target;
+
+    #[test]
+    fn keeps_the_query_string_of_an_external_url() {
+        let url = "/__ext__/https://stremio-server.example/hlsv2/probe?mediaURL=magnet%3Ax&audioCodecs=mp3";
+        assert_eq!(
+            external_target(url),
+            Some("https://stremio-server.example/hlsv2/probe?mediaURL=magnet%3Ax&audioCodecs=mp3")
+        );
+    }
+
+    #[test]
+    fn accepts_an_external_url_without_a_query_string() {
+        let url = "/__ext__/http://addon.example/manifest.json";
+        assert_eq!(external_target(url), Some("http://addon.example/manifest.json"));
+    }
+
+    #[test]
+    fn rejects_a_target_that_is_not_http() {
+        assert_eq!(external_target("/__ext__/file:///etc/passwd"), None);
+        assert_eq!(external_target("/__ext__/"), None);
+    }
+
+    #[test]
+    fn ignores_a_url_outside_the_external_prefix() {
+        assert_eq!(external_target("/scripts/main.js?v=1"), None);
+    }
 }
