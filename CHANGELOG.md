@@ -16,6 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 - Release workflow now builds stremio-service from the pinned fork tag `v0.1.0-horizon.2` instead of
   whatever `master` happens to be, with a `service_version` input to override it
 
+### Fixed
+
+- Fullscreen toggle no longer goes stale when the window leaves fullscreen without going through
+  the app — the green button, Cmd+Ctrl+F, the Window menu. The bridge kept a local mirror that only
+  moved when the frontend called it; it now re-reads the real window state, retrying until the macOS
+  transition settles (measured: the window still reports fullscreen ~150ms in, and only reads
+  correctly around 600ms)
+
 ## [0.3.2] - 2026-05-26
 
 ### Changed
