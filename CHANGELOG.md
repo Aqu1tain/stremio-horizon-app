@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+### Fixed
+
+- Block the external HTTP proxy from reaching loopback, private, link-local, and other non-public
+  destinations, including through DNS answers and redirects (#65)
+
 ## [0.3.3] - 2026-07-31
 
 ### Added

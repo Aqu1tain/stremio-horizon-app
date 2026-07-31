@@ -3711,6 +3711,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "ureq",
+ "url",
  "webkit2gtk",
  "windows-sys 0.59.0",
 ]
