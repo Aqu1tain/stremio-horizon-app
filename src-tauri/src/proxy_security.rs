@@ -31,7 +31,7 @@ pub fn external_target(raw_url: &str, prefix: &str) -> Result<Url, ExternalTarge
     Ok(target)
 }
 
-fn validate_url(target: &Url) -> Result<(), ExternalTargetError> {
+pub fn validate_url(target: &Url) -> Result<(), ExternalTargetError> {
     if !matches!(target.scheme(), "http" | "https")
         || target.host().is_none()
         || !target.username().is_empty()
