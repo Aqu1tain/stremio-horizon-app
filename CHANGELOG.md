@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-01
+
+### Changed
+
+- Updated frontend to stremio-horizon v0.1.8
+
+### Fixed
+
+- Blend the home hero into the real dark-blue page background without a visible black boundary (#26)
+
 ## [0.3.5] - 2026-08-01
 
 ### Added
@@ -171,7 +181,8 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 - Use fixed port to persist session across restarts
 - Bypass CORS for stremio-service communication
 
-[Unreleased]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.3.5...HEAD
+[Unreleased]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.3.5...v0.4.0
 [0.3.5]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.3.2...v0.3.3
