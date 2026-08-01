@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-08-01
+
 ### Added
 
 - Secure persistent download manager with resumable transfers, progress events, downloaded metadata
@@ -14,6 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 - Offline HLS downloads that keep one selected video quality with its audio, subtitle, encryption-key
   and initialization resources, while preserving pause and resume (#23)
 - Persist content, episode and season identities so the frontend can group downloaded versions reliably
+- Native Discord Rich Presence over Discord IPC on macOS, Windows and Linux, with activity cleanup when
+  the option is disabled or the application exits (#22)
+
+### Changed
+
+- Updated frontend to stremio-horizon v0.1.7
 
 ### Fixed
 
@@ -163,7 +171,8 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 - Use fixed port to persist session across restarts
 - Bypass CORS for stremio-service communication
 
-[Unreleased]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.3.4...HEAD
+[Unreleased]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.3.5...HEAD
+[0.3.5]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.3.3...v0.3.4
 [0.3.3]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.3.2...v0.3.3
 [0.3.2]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.3.1...v0.3.2
