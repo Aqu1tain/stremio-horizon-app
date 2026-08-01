@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+### Added
+
+- Secure persistent download manager with resumable transfers, progress events, downloaded metadata
+  and artwork, byte-range local playback, and automatic resume after an app restart (#23)
+- Offline HLS downloads that keep one selected video quality with its audio, subtitle, encryption-key
+  and initialization resources, while preserving pause and resume (#23)
+- Persist content, episode and season identities so the frontend can group downloaded versions reliably
+
+### Fixed
+
+- Serve rewritten HLS playlists and segments exclusively from local app storage during offline playback
+- Serve downloaded media on a dedicated worker pool so the streaming service can probe and seek large
+  offline files without deadlocking the app's local HTTP server
+- Give the bundled streaming service direct file access for offline playback, avoiding HTTP range-seek
+  corruption with MP4 files whose metadata is stored at the end of the file
+
 ## [0.3.4] - 2026-07-31
 
 ### Changed

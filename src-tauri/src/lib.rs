@@ -11,6 +11,7 @@ use threadpool::ThreadPool;
 mod chromecast;
 mod config;
 mod debug;
+mod downloads;
 mod proxy_security;
 mod updater;
 
@@ -22,6 +23,7 @@ const SERVICE_TIMEOUT: Duration = Duration::from_secs(15);
 const POLL_INTERVAL: Duration = Duration::from_millis(200);
 const EXT_POOL_SIZE: usize = 8;
 const SVC_POOL_SIZE: usize = 4;
+const DOWNLOAD_POOL_SIZE: usize = 8;
 const EXT_TIMEOUT: Duration = Duration::from_secs(30);
 const EXT_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const SVC_TIMEOUT: Duration = Duration::from_secs(60);
@@ -127,6 +129,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Mutex::new(chromecast::CastManagerState::default()))
         .manage(updater::SharedUpdateState::default())
+        .manage(downloads::DownloadManager::default())
         .manage(Mutex::new(None::<ServiceProcess>))
         .invoke_handler(tauri::generate_handler![
             chromecast::chromecast_discover,
@@ -140,6 +143,12 @@ pub fn run() {
             updater::get_pending_update,
             updater::get_auto_update_enabled,
             updater::set_auto_update_enabled,
+            downloads::download_start,
+            downloads::download_list,
+            downloads::download_playback_url,
+            downloads::download_pause,
+            downloads::download_resume,
+            downloads::download_delete,
             debug::debug_build,
             debug::debug_state,
             debug::debug_updater,
@@ -147,6 +156,7 @@ pub fn run() {
             debug::debug_logs,
         ])
         .setup(|app| {
+            downloads::initialize(app)?;
             start_local_server(app);
 
             let service = spawn_streaming_service(app);
@@ -155,6 +165,7 @@ pub fn run() {
 
             let ready = wait_for_service();
             create_window(app)?;
+            downloads::resume_pending(app.handle());
 
             if !spawned || !ready {
                 warn_service_failed(app);
@@ -332,6 +343,7 @@ const FETCH_INTERCEPTOR: &str = r#"
 const EXT_PREFIX: &str = "/__ext__/";
 
 fn start_local_server(app: &mut tauri::App) {
+    let app_handle = app.handle().clone();
     let resolver = app.asset_resolver();
     let fallback = resolver.get("/".to_string()).map(|a| a.bytes);
     let (tx, rx) = mpsc::channel();
@@ -349,6 +361,7 @@ fn start_local_server(app: &mut tauri::App) {
         .build();
     let ext_pool = ThreadPool::new(EXT_POOL_SIZE);
     let svc_pool = ThreadPool::new(SVC_POOL_SIZE);
+    let download_pool = ThreadPool::new(DOWNLOAD_POOL_SIZE);
 
     thread::spawn(move || {
         let server = tiny_http::Server::http(format!("localhost:{PORT}"))
@@ -358,6 +371,13 @@ fn start_local_server(app: &mut tauri::App) {
         for request in server.incoming_requests() {
             let raw_url = request.url().to_string();
             let path = raw_url.split('?').next().unwrap_or(&raw_url);
+
+            if let Some(id) = path.strip_prefix(downloads::DOWNLOAD_PREFIX) {
+                let app_handle = app_handle.clone();
+                let id = id.to_owned();
+                download_pool.execute(move || downloads::respond(&app_handle, request, &id));
+                continue;
+            }
 
             if raw_url.starts_with(EXT_PREFIX) {
                 let target = match proxy_security::external_target(&raw_url, EXT_PREFIX) {
