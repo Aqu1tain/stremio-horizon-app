@@ -11,6 +11,7 @@ use threadpool::ThreadPool;
 mod chromecast;
 mod config;
 mod debug;
+mod discord;
 mod downloads;
 mod proxy_security;
 mod updater;
@@ -129,6 +130,7 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Mutex::new(chromecast::CastManagerState::default()))
         .manage(updater::SharedUpdateState::default())
+        .manage(discord::DiscordManager::default())
         .manage(downloads::DownloadManager::default())
         .manage(Mutex::new(None::<ServiceProcess>))
         .invoke_handler(tauri::generate_handler![
@@ -143,6 +145,10 @@ pub fn run() {
             updater::get_pending_update,
             updater::get_auto_update_enabled,
             updater::set_auto_update_enabled,
+            discord::discord_connect,
+            discord::discord_disconnect,
+            discord::discord_set_activity,
+            discord::discord_clear_activity,
             downloads::download_start,
             downloads::download_list,
             downloads::download_playback_url,
@@ -183,6 +189,7 @@ pub fn run() {
 
     app.run(|app, event| {
         if let RunEvent::Exit = event {
+            discord::shutdown(app);
             if let Some(mut svc) = app.state::<ServiceState>().lock().unwrap().take() {
                 svc.kill();
             }
