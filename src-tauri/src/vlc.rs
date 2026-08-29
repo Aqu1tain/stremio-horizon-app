@@ -224,6 +224,9 @@ fn playback_preference_args(request: &VlcPlaybackRequest) -> Result<Vec<String>,
             args.push(format!("--sub-file={subtitle_url}"));
         }
     } else {
+        // VLC on Windows can restore its last subtitle choice even with sub-track=-1.
+        // Disabling the subpicture output makes the application's "None" setting authoritative.
+        args.push("--no-spu".to_owned());
         args.push("--sub-track=-1".to_owned());
         args.push("--no-sub-autodetect-file".to_owned());
     }
@@ -414,7 +417,7 @@ mod tests {
 
         assert_eq!(
             playback_preference_args(&request).unwrap(),
-            vec!["--sub-track=-1", "--no-sub-autodetect-file"]
+            vec!["--no-spu", "--sub-track=-1", "--no-sub-autodetect-file"]
         );
     }
 
