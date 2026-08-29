@@ -15,6 +15,7 @@ mod discord;
 mod downloads;
 mod proxy_security;
 mod updater;
+mod vlc;
 
 pub use updater::{snapshot_pending, UpdateState};
 
@@ -155,6 +156,8 @@ pub fn run() {
             downloads::download_pause,
             downloads::download_resume,
             downloads::download_delete,
+            vlc::vlc_available,
+            vlc::vlc_play,
             debug::debug_build,
             debug::debug_state,
             debug::debug_updater,
