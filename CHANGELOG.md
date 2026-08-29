@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-08-30
+
+### Changed
+
+- Updated frontend to stremio-horizon v0.1.10
+
+### Fixed
+
+- Force VLC's subtitle renderer off when Horizon's subtitle language is set to None, preventing
+  VLC on Windows from restoring a previously selected subtitle track
+- Explicitly persist watched completion before VLC advances to the next episode or leaves the
+  player
+
 ## [0.4.1] - 2026-08-29
 
 ### Added
@@ -200,7 +213,8 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 - Use fixed port to persist session across restarts
 - Bypass CORS for stremio-service communication
 
-[Unreleased]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.3.5...v0.4.0
 [0.3.5]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.3.4...v0.3.5
