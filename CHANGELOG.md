@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-08-29
+
+### Added
+
+- Native VLC playback on macOS, Windows and Linux with automatic discovery in the standard install
+  locations
+- Resume from the saved position and synchronize playback progress and watched completion back to
+  Stremio while VLC is open
+- Pass Stremio's primary and secondary audio/subtitle language preferences and the selected external
+  subtitle to VLC, including the application's disabled-subtitles setting
+
+### Changed
+
+- Updated frontend to stremio-horizon v0.1.9
+
+### Fixed
+
+- Open series episode lists at the first released unwatched episode instead of the beginning
+
 ## [0.4.0] - 2026-08-01
 
 ### Changed
@@ -181,7 +200,8 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 - Use fixed port to persist session across restarts
 - Bypass CORS for stremio-service communication
 
-[Unreleased]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.3.5...v0.4.0
 [0.3.5]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.3.4...v0.3.5
 [0.3.4]: https://github.com/Aqu1tain/stremio-horizon-app/compare/v0.3.3...v0.3.4
