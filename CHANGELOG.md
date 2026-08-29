@@ -9,10 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org).
 
 ## [0.4.2] - 2026-08-30
 
+### Changed
+
+- Updated frontend to stremio-horizon v0.1.10
+
 ### Fixed
 
 - Force VLC's subtitle renderer off when Horizon's subtitle language is set to None, preventing
   VLC on Windows from restoring a previously selected subtitle track
+- Explicitly persist watched completion before VLC advances to the next episode or leaves the
+  player
 
 ## [0.4.1] - 2026-08-29
 
