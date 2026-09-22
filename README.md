@@ -1,5 +1,12 @@
 # Stremio Horizon App
 
+> [!IMPORTANT]
+> **This project is archived and no longer maintained.**
+>
+> I no longer have the time to develop Stremio Horizon, and [Nuvio](https://nuvio.tv) has recently become the best alternative to it. It shares a philosophy very close to mine, so there is no point in keeping this project going.
+>
+> If you liked Horizon, go check out [Nuvio](https://nuvio.tv) ([source](https://github.com/tapframe/NuvioStreaming)). The code here stays available as-is, and the last desktop build remains downloadable from the [releases page](https://github.com/Aqu1tain/stremio-horizon-app/releases/latest).
+
 Desktop app for [Stremio Horizon](https://github.com/Aqu1tain/stremio-horizon), built with [Tauri](https://tauri.app).
 
 Bundles the Stremio Horizon web UI with a [forked stremio-service](https://github.com/Aqu1tain/stremio-service) for local streaming.
